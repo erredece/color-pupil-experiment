@@ -100,9 +100,26 @@ define inline_script new_inline_script_2
 	totalTrials = 5
 	myKeyboard = keyboard()
 	
-	class trial():
+	class experiment(object):
 		
+		def __init__(self, practice = False):
+			self.practice = practice
+		
+		def run(self, loops, pressKeyText, myKeyboard):
+			newTrial = trial()
+			newTrial.setup(loops)
+			newTrial.showTarget(pressKeyText, myKeyboard)
+			startTime = 0
+			loopcounter = 1
+			while loopcounter <= loops:
+				startTime = clock.time()
+				newTrial.presentStimulus(loopcounter)
+				core.wait(presentationTime * 0.001 * 0.7) # 70ms + 30 from processing the code
+				#print(clock.time() - startTime)
+				loopcounter += 1		
+			newTrial.getAnswer(self, myKeyboard)
 	
+	class trial(experiment):
 		letters = ["A", "D", "E", "G", "H", "M", "S", "W", "X", "Z"]
 		
 		def addLetter(letter):
@@ -177,7 +194,7 @@ define inline_script new_inline_script_2
 			myKeyboard.get_key()	
 			myKeyboard.flush()
 		
-		def getAnswer(self, myKeyboard):
+		def getAnswer(self, experiment, myKeyboard):
 			keysString = ""
 			trial.correct = False
 			while True:
@@ -197,6 +214,7 @@ define inline_script new_inline_script_2
 					keysString = keysString + " "
 				else:
 					keysString = keysString + keys[0]
+			
 			myKeyboard.flush()
 			try:
 				trial.answer = int(keysString)
@@ -206,48 +224,16 @@ define inline_script new_inline_script_2
 			if trial.answer == trial.targetPool.count(trial.target):
 				trial.correct = True
 			
-			#if experiment.practice = True:
-			correctText = "FALSE"
-			if trial.correct == True:
-				correctText = "CORRECT"
-			feedbackText = visual.TextStim(win, text = correctText, color='black', pos=(0, 128), height=64, wrapWidth=700)
-			feedbackText.draw()
-			win.flip()
-			myKeyboard.get_key()
-			myKeyboard.flush()
-			
-			
+			if experiment.practice == True:
+				correctText = "FALSE"
+				if trial.correct == True:
+					correctText = "CORRECT"
+				feedbackText = visual.TextStim(win, text = correctText, color='black', pos=(0, 128), height=64, wrapWidth=700)
+				feedbackText.draw()
+				win.flip()
+				myKeyboard.get_key()
+				myKeyboard.flush()
 			return(trial.answer, trial.correct)
-			
-	class experiment():
-		
-		def run(self, loops, pressKeyText, myKeyboard):
-			print("run it")
-			
-			newTrial = trial()
-			newTrial.setup(loops)
-	
-			print(newTrial.red)
-			print(newTrial.blue)
-			print(newTrial.targetPool)
-			print(newTrial.target)
-			print(newTrial.targetPool.count(newTrial.target))
-			print(newTrial.redWeights)
-			print(newTrial.chance)
-			newTrial.showTarget(pressKeyText, myKeyboard)
-			startTime = 0
-			loopcounter = 1
-			while loopcounter <= loops:
-				startTime = clock.time()
-				newTrial.presentStimulus(loopcounter)
-				core.wait(presentationTime * 0.001 * 0.7) # 70ms + 30 from processing the code
-				print(clock.time() - startTime)
-				loopcounter += 1
-				
-			newTrial.getAnswer(myKeyboard)
-	#		pressKeyText.draw()
-	#		win.flip()	
-	
 	
 	instructions = visual.TextStim(win, text= "Please, count how many times the target letter appears", color='black', pos=(0, 256), height=32, wrapWidth=800)
 	pressKeyText = visual.TextStim(win, text= "Press any key to continue.", color='black', pos=(0, -256), height=26, wrapWidth=800)
@@ -257,7 +243,7 @@ define inline_script new_inline_script_2
 	myKeyboard.get_key()
 	myKeyboard.flush()
 	for trials in range(totalTrials):
-		newExperiment = experiment()
+		newExperiment = experiment(practice = False)
 		newExperiment.run(loops, pressKeyText, myKeyboard)
 	__end__
 	set _prepare ""
