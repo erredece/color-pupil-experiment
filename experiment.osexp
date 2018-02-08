@@ -93,7 +93,10 @@ define inline_script new_inline_script_2
 	import gc
 	import numpy as np
 	import random
+	import os
+	import re
 	import scipy.misc
+	import sys
 	
 	presentationTime = 100
 	loops = 70
@@ -120,28 +123,24 @@ define inline_script new_inline_script_2
 			newTrial.getAnswer(self, myKeyboard)
 	
 	class trial(experiment):
-		letters = ["A", "D", "E", "G", "H", "M", "S", "W", "X", "Z"]
-		
-		def addLetter(letter):
-			array = scipy.misc.imread(exp.experiment_path + "\letters/" + str(letter) + ".png")* 0.00075
-			return array[::-1]
-		
-		array = {
-		"A" : addLetter("A"),
-		"D" : addLetter("D"),
-		"E" : addLetter("E"),
-		"G" : addLetter("G"),
-		"H" : addLetter("H"),
-		"M" : addLetter("M"),
-		"S" : addLetter("S"),
-		"W" : addLetter("W"),
-		"X" : addLetter("X"),
-		"Z" : addLetter("Z")
-		}
-		
-		redWeights = letters[:len(letters)/2] 
+		def getLetters(self):
+			lettersPath = exp.experiment_path + "\letters/"
+			try:
+				trial.letters = os.listdir(lettersPath)
+				trial.lettersArray = {}
+				for letter in range(len(trial.letters)):
+					trial.letters[letter] = str(re.search('(.?).png', trial.letters[letter]).group(1))
+					array = scipy.misc.imread(lettersPath + trial.letters[letter] + ".png") * 0.00075
+					trial.lettersArray.update({trial.letters[letter]:array[::-1]})
+			except:
+				print("ERROR: Failed to find letters! Add a directory named \"letters\" and add the letter files as \".png\" files!")
+				sys.exit()
+			trial.redWeights = trial.letters[:len(trial.letters)/2] 
+			
+			return(trial.letters, trial.lettersArray, trial.redWeights)
 		
 		def setup(self, loops):
+			self.getLetters()
 			trial.target = random.choice(trial.letters)
 			trial.nonTargets = []
 			trial.targetPool = []
@@ -149,6 +148,9 @@ define inline_script new_inline_script_2
 			trial.red = []
 			trial.blue = []
 			trial.targetChance = random.uniform(0,1)
+			trial.arrowChance = random.uniform(0,1)
+			trial.arrowOrientation = "left"
+			trial.arrowCorrect = False
 			for letter in trial.letters:
 				if letter != trial.target:
 					trial.nonTargets.append(letter)
@@ -165,14 +167,20 @@ define inline_script new_inline_script_2
 			else:
 				trial.red = trial.nonTargetPool
 				trial.blue = trial.targetPool
-				
-			trial.arrowOrientation = np.random.choice(["left", "right"])
+			
+			if (trial.red == trial.targetPool and trial.arrowChance <= 0.2) or (trial.blue == trial.targetPool and trial.arrowChance > 0.2):
+				trial.arrowOrientation = "right"
+			
+			if (trial.red == trial.targetPool and trial.arrowOrientation == "left") or (trial.blue == trial.targetPool and trial.arrowOrientation == "right"):
+				trial.arrowCorrect = True
+			
+			print(trial.red == trial.targetPool)
 			gc.collect()
 			return(trial.target, trial.nonTargets, trial.targetPool, trial.nonTargetPool, trial.red, trial.blue, trial.targetChance, trial.arrowOrientation)
 		
 		def presentStimulus(self, loopcounter):
-			redTex = np.random.uniform(0.25, 1, (256,256, 4)) + trial.array[trial.red[loopcounter - 1]]
-			blueTex = np.random.uniform(0.25, 1, (256,256, 4)) + trial.array[trial.blue[loopcounter -1]]
+			redTex = np.random.uniform(0.25, 1, (256,256, 4)) + trial.lettersArray[trial.red[loopcounter - 1]]
+			blueTex = np.random.uniform(0.25, 1, (256,256, 4)) + trial.lettersArray[trial.blue[loopcounter -1]]
 			redCircle = visual.GratingStim(win, tex=redTex, mask='raisedCos', color='red', size=256, pos=(-256, 0))
 			blueCircle = visual.GratingStim(win, tex=blueTex, mask='raisedCos', color='blue', size=256, pos=(256, 0))
 			arrowVert = [(-0.4,0.05),(-0.4,-0.05),(-.2,-0.05),(-.2,-0.1),(0,0),(-.2,0.1),(-.2,0.05)] 
@@ -247,7 +255,7 @@ define inline_script new_inline_script_2
 						break
 					myKeyboard.flush()
 			return(trial.answer, trial.correct)
-	
+			
 	instructions = visual.TextStim(win, text= "Please, count how many times the target letter appears", color='black', pos=(0, 256), height=32, wrapWidth=800)
 	pressKeyText = visual.TextStim(win, text= "Press any key to continue.", color='black', pos=(0, -256), height=26, wrapWidth=800)
 	instructions.draw()
