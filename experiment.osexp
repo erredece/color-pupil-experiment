@@ -115,7 +115,7 @@ define inline_script new_inline_script_2
 				startTime = clock.time()
 				newTrial.presentStimulus(loopcounter)
 				core.wait(presentationTime * 0.001 * 0.7) # 70ms + 30 from processing the code
-				#print(clock.time() - startTime)
+				print(clock.time() - startTime)
 				loopcounter += 1		
 			newTrial.getAnswer(self, myKeyboard)
 	
@@ -123,7 +123,7 @@ define inline_script new_inline_script_2
 		letters = ["A", "D", "E", "G", "H", "M", "S", "W", "X", "Z"]
 		
 		def addLetter(letter):
-			array = scipy.misc.imread(exp.experiment_path + "\letters\\" + str(letter) + ".png")* 0.00075
+			array = scipy.misc.imread(exp.experiment_path + "\letters/" + str(letter) + ".png")* 0.00075
 			return array[::-1]
 		
 		array = {
@@ -148,7 +148,7 @@ define inline_script new_inline_script_2
 			trial.nonTargetPool = []
 			trial.red = []
 			trial.blue = []
-			trial.chance = random.uniform(0,1)
+			trial.targetChance = random.uniform(0,1)
 			for letter in trial.letters:
 				if letter != trial.target:
 					trial.nonTargets.append(letter)
@@ -159,15 +159,16 @@ define inline_script new_inline_script_2
 					trial.targetPool[loop] = random.choice(trial.letters)
 				while (trial.nonTargetPool[loop] == trial.nonTargetPool[loop - 1] and loop > 1) or trial.nonTargetPool[loop] == trial.targetPool[loop]:
 					trial.nonTargetPool[loop] = random.choice(trial.nonTargets)
-			if (trial.target in trial.redWeights and trial.chance <= 0.8 ) or (trial.target not in trial.redWeights and trial.chance > 0.8):
+			if (trial.target in trial.redWeights and trial.targetChance <= 0.8 ) or (trial.target not in trial.redWeights and trial.targetChance > 0.8):
 				trial.red = trial.targetPool
 				trial.blue = trial.nonTargetPool
 			else:
 				trial.red = trial.nonTargetPool
 				trial.blue = trial.targetPool
+				
 			trial.arrowOrientation = np.random.choice(["left", "right"])
 			gc.collect()
-			return(trial.target, trial.nonTargets, trial.targetPool, trial.nonTargetPool, trial.red, trial.blue, trial.chance, trial.arrowOrientation)
+			return(trial.target, trial.nonTargets, trial.targetPool, trial.nonTargetPool, trial.red, trial.blue, trial.targetChance, trial.arrowOrientation)
 		
 		def presentStimulus(self, loopcounter):
 			redTex = np.random.uniform(0.25, 1, (256,256, 4)) + trial.array[trial.red[loopcounter - 1]]
@@ -206,9 +207,9 @@ define inline_script new_inline_script_2
 				submitText.draw()
 				win.flip()
 				keys = myKeyboard.get_key()
-				if keys[0] == 'return':
+				if 'return' in keys:
 					break
-				elif keys[0] == 'backspace':
+				elif 'backspace' in keys:
 					keysString = keysString[:-1]
 				elif len(keys[0]) > 1:
 					keysString = keysString + " "
@@ -225,14 +226,26 @@ define inline_script new_inline_script_2
 				trial.correct = True
 			
 			if experiment.practice == True:
-				correctText = "FALSE"
+				correctText = ("FALSE", "red")
 				if trial.correct == True:
-					correctText = "CORRECT"
-				feedbackText = visual.TextStim(win, text = correctText, color='black', pos=(0, 128), height=64, wrapWidth=700)
-				feedbackText.draw()
-				win.flip()
-				myKeyboard.get_key()
-				myKeyboard.flush()
+					correctText = ("CORRECT", "green")
+				while True:
+					feedbackText = visual.TextStim(win, text = correctText[0], color=correctText[1], pos=(0, 128), height=64, wrapWidth=700)
+					feedbackText2 = visual.TextStim(win, text = "Press Q to exit practice mode.", color="black", pos=(0, -224), height=18, wrapWidth=700)
+					feedbackText3 = visual.TextStim(win, text = "Otherwise, press space to continue in practice mode.", color="black", pos=(0, -256), height=18, wrapWidth=700)
+					feedbackText.draw()
+					feedbackText2.draw()
+					feedbackText3.draw()
+					win.flip()
+					keys = myKeyboard.get_key()
+					if 'q' in keys:
+						experiment.practice = False
+						print("Exiting practice mode...")
+						break
+					elif 'space' in keys:
+						print("Running another practice trial.")
+						break
+					myKeyboard.flush()
 			return(trial.answer, trial.correct)
 	
 	instructions = visual.TextStim(win, text= "Please, count how many times the target letter appears", color='black', pos=(0, 256), height=32, wrapWidth=800)
@@ -242,8 +255,13 @@ define inline_script new_inline_script_2
 	win.flip()
 	myKeyboard.get_key()
 	myKeyboard.flush()
+	
+	newExperiment = experiment(practice=True)
+	while newExperiment.practice == True:
+		newExperiment.run(loops, pressKeyText, myKeyboard)
+	
+	print("Success.")
 	for trials in range(totalTrials):
-		newExperiment = experiment(practice = False)
 		newExperiment.run(loops, pressKeyText, myKeyboard)
 	__end__
 	set _prepare ""
