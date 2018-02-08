@@ -103,45 +103,78 @@ define inline_script new_inline_script_2
 	totalTrials = 5
 	myKeyboard = keyboard()
 	
-	class experiment(object):
-		
+	class experiment(object):	
 		def __init__(self, practice = False):
 			self.practice = practice
 		
-		def run(self, loops, pressKeyText, myKeyboard):
+		def getLetters(self):
+			'''Gets letters from the "letters" folder and generates an array from them'''
+			lettersPath = exp.experiment_path + "\letters/"
+			try:
+				experiment.letters = os.listdir(lettersPath)
+				experiment.lettersArray = {}
+				for letter in range(len(experiment.letters)):
+					experiment.letters[letter] = str(re.search('(.?).png', experiment.letters[letter]).group(1))
+					array = scipy.misc.imread(lettersPath + experiment.letters[letter] + ".png") * 0.00075
+					experiment.lettersArray.update({experiment.letters[letter]:array[::-1]})
+			except:
+				print("ERROR: Failed to find letters! Add a directory named \"letters\" and add the letter files as \".png\" files!")
+				sys.exit()
+	
+			return(experiment.letters, experiment.lettersArray)
+		
+		def getWeights(self):
+			'''Sets weights for which a letter will appear on the red or the blue stimuli'''
+			random.shuffle(experiment.letters)
+			experiment.redWeights = experiment.letters[:len(experiment.letters)/2] 
+			return experiment.redWeights
+		
+		def showInstructions(self, myKeyboard):
+			'''Presents instructions to the user'''
+			instructions = visual.TextStim(win, text= "Please, count how many times the target letter appears", color='black', pos=(0, 256), height=32, wrapWidth=800)
+			experiment.pressKeyText = visual.TextStim(win, text= "Press any key to continue.", color='black', pos=(0, -256), height=26, wrapWidth=800)
+			instructions.draw()
+			experiment.pressKeyText.draw()
+			win.flip()
+			myKeyboard.get_key()
+			myKeyboard.flush()
+			return experiment.pressKeyText
+	
+		
+		def run(self, loops, myKeyboard):
+			'''Runs the actual experiment'''
 			newTrial = trial()
 			newTrial.setup(loops)
-			newTrial.showTarget(pressKeyText, myKeyboard)
+			newTrial.showTarget(myKeyboard)
 			startTime = 0
 			loopcounter = 1
 			while loopcounter <= loops:
 				startTime = clock.time()
 				newTrial.presentStimulus(loopcounter)
 				core.wait(presentationTime * 0.001 * 0.7) # 70ms + 30 from processing the code
-				print(clock.time() - startTime)
+				#print(clock.time() - startTime)
 				loopcounter += 1		
 			newTrial.getAnswer(self, myKeyboard)
+			
+		def start(self, loops, myKeyboard):
+			'''Initilializes the experiment'''
+			self.getLetters()
+			self.getWeights()
+			self.showInstructions(myKeyboard)
+			while self.practice == True:
+				self.run(loops, myKeyboard)
+	
+			print("Success.")
+			self.getWeights()
+			for trials in range(totalTrials):
+				self.run(loops, myKeyboard)
 	
 	class trial(experiment):
-		def getLetters(self):
-			lettersPath = exp.experiment_path + "\letters/"
-			try:
-				trial.letters = os.listdir(lettersPath)
-				trial.lettersArray = {}
-				for letter in range(len(trial.letters)):
-					trial.letters[letter] = str(re.search('(.?).png', trial.letters[letter]).group(1))
-					array = scipy.misc.imread(lettersPath + trial.letters[letter] + ".png") * 0.00075
-					trial.lettersArray.update({trial.letters[letter]:array[::-1]})
-			except:
-				print("ERROR: Failed to find letters! Add a directory named \"letters\" and add the letter files as \".png\" files!")
-				sys.exit()
-			trial.redWeights = trial.letters[:len(trial.letters)/2] 
-			
-			return(trial.letters, trial.lettersArray, trial.redWeights)
 		
 		def setup(self, loops):
-			self.getLetters()
-			trial.target = random.choice(trial.letters)
+			'''Sets up a trial'''
+			print(experiment.redWeights)
+			trial.target = random.choice(experiment.letters)
 			trial.nonTargets = []
 			trial.targetPool = []
 			trial.nonTargetPool = []
@@ -151,17 +184,17 @@ define inline_script new_inline_script_2
 			trial.arrowChance = random.uniform(0,1)
 			trial.arrowOrientation = "left"
 			trial.arrowCorrect = False
-			for letter in trial.letters:
+			for letter in experiment.letters:
 				if letter != trial.target:
 					trial.nonTargets.append(letter)
 			for loop in range(loops):
-				trial.targetPool.append(random.choice(trial.letters))
+				trial.targetPool.append(random.choice(experiment.letters))
 				trial.nonTargetPool.append(random.choice(trial.nonTargets))
 				while trial.targetPool[loop] == trial.targetPool[loop - 1] and loop > 1:
-					trial.targetPool[loop] = random.choice(trial.letters)
+					trial.targetPool[loop] = random.choice(experiment.letters)
 				while (trial.nonTargetPool[loop] == trial.nonTargetPool[loop - 1] and loop > 1) or trial.nonTargetPool[loop] == trial.targetPool[loop]:
 					trial.nonTargetPool[loop] = random.choice(trial.nonTargets)
-			if (trial.target in trial.redWeights and trial.targetChance <= 0.8 ) or (trial.target not in trial.redWeights and trial.targetChance > 0.8):
+			if (trial.target in experiment.redWeights and trial.targetChance <= 0.8 ) or (trial.target not in experiment.redWeights and trial.targetChance > 0.8):
 				trial.red = trial.targetPool
 				trial.blue = trial.nonTargetPool
 			else:
@@ -170,17 +203,22 @@ define inline_script new_inline_script_2
 			
 			if (trial.red == trial.targetPool and trial.arrowChance <= 0.2) or (trial.blue == trial.targetPool and trial.arrowChance > 0.2):
 				trial.arrowOrientation = "right"
+			else: 
+				trial.arrowOrientation = "left"
 			
 			if (trial.red == trial.targetPool and trial.arrowOrientation == "left") or (trial.blue == trial.targetPool and trial.arrowOrientation == "right"):
 				trial.arrowCorrect = True
+			else:
+				trial.arrowCorrect = False
 			
 			print(trial.red == trial.targetPool)
 			gc.collect()
 			return(trial.target, trial.nonTargets, trial.targetPool, trial.nonTargetPool, trial.red, trial.blue, trial.targetChance, trial.arrowOrientation)
 		
 		def presentStimulus(self, loopcounter):
-			redTex = np.random.uniform(0.25, 1, (256,256, 4)) + trial.lettersArray[trial.red[loopcounter - 1]]
-			blueTex = np.random.uniform(0.25, 1, (256,256, 4)) + trial.lettersArray[trial.blue[loopcounter -1]]
+			'''Presents a single set of stimuli'''
+			redTex = np.random.uniform(0.25, 1, (256,256, 4)) + experiment.lettersArray[trial.red[loopcounter - 1]]
+			blueTex = np.random.uniform(0.25, 1, (256,256, 4)) + experiment.lettersArray[trial.blue[loopcounter -1]]
 			redCircle = visual.GratingStim(win, tex=redTex, mask='raisedCos', color='red', size=256, pos=(-256, 0))
 			blueCircle = visual.GratingStim(win, tex=blueTex, mask='raisedCos', color='blue', size=256, pos=(256, 0))
 			arrowVert = [(-0.4,0.05),(-0.4,-0.05),(-.2,-0.05),(-.2,-0.1),(0,0),(-.2,0.1),(-.2,0.05)] 
@@ -195,10 +233,11 @@ define inline_script new_inline_script_2
 			fixation.draw()
 			win.flip()	
 		
-		def showTarget(self, pressKeyText, myKeyboard):
+		def showTarget(self, myKeyboard):
+			'''Shows the target to the user'''
 			targetText = visual.TextStim(win, text = trial.target, color='green', pos=(0, 128), height=64, wrapWidth=700)
 			targetText.draw()
-			pressKeyText.draw()
+			experiment.pressKeyText.draw()
 			win.flip()
 			myKeyboard.get_key()	
 			myKeyboard.flush()
@@ -256,21 +295,8 @@ define inline_script new_inline_script_2
 					myKeyboard.flush()
 			return(trial.answer, trial.correct)
 			
-	instructions = visual.TextStim(win, text= "Please, count how many times the target letter appears", color='black', pos=(0, 256), height=32, wrapWidth=800)
-	pressKeyText = visual.TextStim(win, text= "Press any key to continue.", color='black', pos=(0, -256), height=26, wrapWidth=800)
-	instructions.draw()
-	pressKeyText.draw()
-	win.flip()
-	myKeyboard.get_key()
-	myKeyboard.flush()
-	
 	newExperiment = experiment(practice=True)
-	while newExperiment.practice == True:
-		newExperiment.run(loops, pressKeyText, myKeyboard)
-	
-	print("Success.")
-	for trials in range(totalTrials):
-		newExperiment.run(loops, pressKeyText, myKeyboard)
+	newExperiment.start(loops, myKeyboard)
 	__end__
 	set _prepare ""
 
