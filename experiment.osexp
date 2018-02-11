@@ -1,6 +1,6 @@
 ---
 API: 2.1
-OpenSesame: 3.2.0a33
+OpenSesame: 3.2.0
 Platform: nt
 ---
 set width 1024
@@ -147,13 +147,11 @@ define inline_script new_inline_script_2
 			newTrial.setup(loops)
 			newTrial.showTarget(myKeyboard)
 			startTime = 0
-			loopcounter = 1
-			while loopcounter <= loops:
+			for loop in range(loops):
 				startTime = clock.time()
-				newTrial.presentStimulus(loopcounter)
+				newTrial.presentStimulus(loop)
 				core.wait(presentationTime * 0.001 * 0.7) # 70ms + 30 from processing the code
 				#print(clock.time() - startTime)
-				loopcounter += 1		
 			newTrial.getAnswer(self, myKeyboard)
 			
 		def start(self, loops, myKeyboard):
@@ -163,14 +161,12 @@ define inline_script new_inline_script_2
 			self.showInstructions(myKeyboard)
 			while self.practice == True:
 				self.run(loops, myKeyboard)
-	
 			print("Success.")
 			self.getWeights()
 			for trials in range(totalTrials):
 				self.run(loops, myKeyboard)
 	
 	class trial(experiment):
-		
 		def setup(self, loops):
 			'''Sets up a trial'''
 			print(experiment.redWeights)
@@ -211,7 +207,6 @@ define inline_script new_inline_script_2
 			else:
 				trial.arrowCorrect = False
 			
-			print(trial.red == trial.targetPool)
 			gc.collect()
 			return(trial.target, trial.nonTargets, trial.targetPool, trial.nonTargetPool, trial.red, trial.blue, trial.targetChance, trial.arrowOrientation)
 		
@@ -226,7 +221,7 @@ define inline_script new_inline_script_2
 			if trial.arrowOrientation == "left":
 				arrow.vertices = np.negative(arrowVert)
 				arrow.pos = (-64, 0)
-			fixation = visual.TextStim(win, text="+", height=10, pos=(0,0), color="black")
+			fixation = visual.TextStim(win, text="+", height=20, pos=(0,2), color="black")
 			redCircle.draw()
 			blueCircle.draw()
 			arrow.draw()
@@ -243,6 +238,7 @@ define inline_script new_inline_script_2
 			myKeyboard.flush()
 		
 		def getAnswer(self, experiment, myKeyboard):
+			'''Asks the user for an answer and retrieves it'''
 			keysString = ""
 			trial.correct = False
 			while True:
@@ -273,28 +269,35 @@ define inline_script new_inline_script_2
 				trial.correct = True
 			
 			if experiment.practice == True:
-				correctText = ("FALSE", "red")
-				if trial.correct == True:
-					correctText = ("CORRECT", "green")
-				while True:
-					feedbackText = visual.TextStim(win, text = correctText[0], color=correctText[1], pos=(0, 128), height=64, wrapWidth=700)
-					feedbackText2 = visual.TextStim(win, text = "Press Q to exit practice mode.", color="black", pos=(0, -224), height=18, wrapWidth=700)
-					feedbackText3 = visual.TextStim(win, text = "Otherwise, press space to continue in practice mode.", color="black", pos=(0, -256), height=18, wrapWidth=700)
-					feedbackText.draw()
-					feedbackText2.draw()
-					feedbackText3.draw()
-					win.flip()
-					keys = myKeyboard.get_key()
-					if 'q' in keys:
-						experiment.practice = False
-						print("Exiting practice mode...")
-						break
-					elif 'space' in keys:
-						print("Running another practice trial.")
-						break
-					myKeyboard.flush()
+				self.practiceMode(experiment, myKeyboard)
+				myKeyboard.flush()
+			
 			return(trial.answer, trial.correct)
 			
+		def practiceMode(self, experiment, myKeyboard):
+			'''Gives feedback if practice mode is on'''
+			correctText = ("FALSE", "red")
+			if trial.correct == True:
+				correctText = ("CORRECT", "green")
+			while True:
+				feedbackText = visual.TextStim(win, text = correctText[0], color=correctText[1], pos=(0, 128), height=64, wrapWidth=700)
+				feedbackText2 = visual.TextStim(win, text = "Press Q to exit practice mode.", color="black", pos=(0, -224), height=18, wrapWidth=700)
+				feedbackText3 = visual.TextStim(win, text = "Otherwise, press space to continue in practice mode.", color="black", pos=(0, -256), height=18, wrapWidth=700)
+				feedbackText.draw()
+				feedbackText2.draw()
+				feedbackText3.draw()
+				win.flip()
+				keys = myKeyboard.get_key()
+				if 'q' in keys:
+					experiment.practice = False
+					print("Exiting practice mode...")
+					break
+				elif 'space' in keys:
+					print("Running another practice trial.")
+					break
+				myKeyboard.flush()
+			return experiment.practice
+				
 	newExperiment = experiment(practice=True)
 	newExperiment.start(loops, myKeyboard)
 	__end__
