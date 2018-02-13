@@ -98,28 +98,31 @@ define inline_script new_inline_script_2
 	import scipy.misc
 	import sys
 	
-	presentationTime = 100
-	loops = 70
-	totalTrials = 5
-	myKeyboard = keyboard()
+	class settings(object):
+		presentationTime = (100)
+		loops = (70)
+		totalTrials = (5)
+		myKeyboard = keyboard()
+		orientations = {"left" : (-256, 0), "right" : (256, 0)}
+		tones = ("bright", "dark")
+		redColours = {"bright" : "#FF0000", "dark" : "#A80000"}
+		blueColours = {"bright" : "#0000FF", "dark" : "#0000A8"}
 	
-	class experiment(object):	
+	class experiment(settings):	
 		def __init__(self, practice = False):
 			self.practice = practice
 		
 		def getLetters(self):
 			'''Gets letters from the "letters" folder and generates an array from them'''
 			lettersPath = exp.experiment_path + "\letters/"
-			try:
-				experiment.letters = os.listdir(lettersPath)
-				experiment.lettersArray = {}
-				for letter in range(len(experiment.letters)):
-					experiment.letters[letter] = str(re.search('(.?).png', experiment.letters[letter]).group(1))
-					array = scipy.misc.imread(lettersPath + experiment.letters[letter] + ".png") * 0.00075
-					experiment.lettersArray.update({experiment.letters[letter]:array[::-1]})
-			except:
-				print("ERROR: Failed to find letters! Add a directory named \"letters\" and add the letter files as \".png\" files!")
-				sys.exit()
+			experiment.letters = os.listdir(lettersPath)
+			experiment.lettersArray = {}
+			for letter in range(len(experiment.letters)):
+				experiment.letters[letter] = str(re.search('(.?).png', experiment.letters[letter]).group(1))
+				array = scipy.misc.imread(lettersPath + experiment.letters[letter] + ".png") * 0.00075
+				experiment.lettersArray.update({experiment.letters[letter]:array[::-1]})
+			if not experiment.letters:
+				raise Exception("Failed to find letters! Add a directory named \"letters\" and add the letter files as \".png\" files!")
 	
 			return(experiment.letters, experiment.lettersArray)
 		
@@ -129,45 +132,48 @@ define inline_script new_inline_script_2
 			experiment.redWeights = experiment.letters[:len(experiment.letters)/2] 
 			return experiment.redWeights
 		
-		def showInstructions(self, myKeyboard):
+		def showInstructions(self):
 			'''Presents instructions to the user'''
 			instructions = visual.TextStim(win, text= "Please, count how many times the target letter appears", color='black', pos=(0, 256), height=32, wrapWidth=800)
 			experiment.pressKeyText = visual.TextStim(win, text= "Press any key to continue.", color='black', pos=(0, -256), height=26, wrapWidth=800)
 			instructions.draw()
 			experiment.pressKeyText.draw()
 			win.flip()
-			myKeyboard.get_key()
-			myKeyboard.flush()
+			self.myKeyboard.get_key()
+			self.myKeyboard.flush()
 			return experiment.pressKeyText
 	
 		
-		def run(self, loops, myKeyboard):
+		def run(self):
 			'''Runs the actual experiment'''
 			newTrial = trial()
-			newTrial.setup(loops)
-			newTrial.showTarget(myKeyboard)
+			newTrial.setup()
+			newTrial.showTarget()
 			startTime = 0
-			for loop in range(loops):
+			for loop in range(self.loops):
 				startTime = clock.time()
 				newTrial.presentStimulus(loop)
-				core.wait(presentationTime * 0.001 * 0.7) # 70ms + 30 from processing the code
+				core.wait(self.presentationTime * 0.001 * 0.7) # 70ms + 30 from processing the code
 				#print(clock.time() - startTime)
-			newTrial.getAnswer(self, myKeyboard)
+			newTrial.getAnswer(self)
 			
-		def start(self, loops, myKeyboard):
+		def start(self):
 			'''Initilializes the experiment'''
 			self.getLetters()
 			self.getWeights()
-			self.showInstructions(myKeyboard)
+			self.showInstructions()
 			while self.practice == True:
-				self.run(loops, myKeyboard)
+				self.run()
 			print("Success.")
 			self.getWeights()
-			for trials in range(totalTrials):
-				self.run(loops, myKeyboard)
+			for trials in range(self.totalTrials):
+				self.run()
 	
 	class trial(experiment):
-		def setup(self, loops):
+		def __init__(self):
+			super(trial, self).__init__()
+		
+		def setup(self):
 			'''Sets up a trial'''
 			print(experiment.redWeights)
 			trial.target = random.choice(experiment.letters)
@@ -176,6 +182,11 @@ define inline_script new_inline_script_2
 			trial.nonTargetPool = []
 			trial.red = []
 			trial.blue = []
+			trial.redTone = random.choice(self.tones)
+			trial.blueTone = random.choice(self.tones)
+			trial.posRed = random.choice(("left", "right"))
+			trial.posBlue = next(pos for pos in ("left", "right") if pos not in trial.posRed)
+			# trial.posBlue = next(iter(set(("left", "right")) - set (trial.posRed)))
 			trial.targetChance = random.uniform(0,1)
 			trial.arrowChance = random.uniform(0,1)
 			trial.arrowOrientation = "left"
@@ -183,7 +194,7 @@ define inline_script new_inline_script_2
 			for letter in experiment.letters:
 				if letter != trial.target:
 					trial.nonTargets.append(letter)
-			for loop in range(loops):
+			for loop in range(self.loops):
 				trial.targetPool.append(random.choice(experiment.letters))
 				trial.nonTargetPool.append(random.choice(trial.nonTargets))
 				while trial.targetPool[loop] == trial.targetPool[loop - 1] and loop > 1:
@@ -197,25 +208,31 @@ define inline_script new_inline_script_2
 				trial.red = trial.nonTargetPool
 				trial.blue = trial.targetPool
 			
-			if (trial.red == trial.targetPool and trial.arrowChance <= 0.2) or (trial.blue == trial.targetPool and trial.arrowChance > 0.2):
-				trial.arrowOrientation = "right"
-			else: 
+			if ((
+			trial.red == trial.targetPool and ((trial.targetChance <= 0.8 and trial.posRed == "left") 
+			or (trial.targetChance > 0.8 and trial.posRed == "right"))) 
+			or (trial.blue == trial.targetPool and ((trial.targetChance <= 0.8 and trial.posRed == "right")
+			or (trial.targetChance > 0.8 and trial.posRed == "left")))):
 				trial.arrowOrientation = "left"
+			else: 
+				trial.arrowOrientation = "right"
 			
-			if (trial.red == trial.targetPool and trial.arrowOrientation == "left") or (trial.blue == trial.targetPool and trial.arrowOrientation == "right"):
+			if ((trial.red == trial.targetPool and trial.arrowOrientation == trial.posRed) or
+			(trial.blue == trial.targetPool and trial.arrowOrientation == trial.posBlue)):
 				trial.arrowCorrect = True
 			else:
 				trial.arrowCorrect = False
 			
 			gc.collect()
-			return(trial.target, trial.nonTargets, trial.targetPool, trial.nonTargetPool, trial.red, trial.blue, trial.targetChance, trial.arrowOrientation)
+			print("Red is the target:", trial.red == trial.targetPool, "Chance:", trial.targetChance, "Red position:", trial.posRed, "Arrow:", trial.arrowOrientation)
+			return(trial.target, trial.nonTargets, trial.targetPool, trial.nonTargetPool, trial.red, trial.blue, trial.posRed, trial.posBlue, trial.redTone, trial.blueTone, trial.targetChance, trial.arrowOrientation)
 		
 		def presentStimulus(self, loopcounter):
 			'''Presents a single set of stimuli'''
 			redTex = np.random.uniform(0.25, 1, (256,256, 4)) + experiment.lettersArray[trial.red[loopcounter - 1]]
 			blueTex = np.random.uniform(0.25, 1, (256,256, 4)) + experiment.lettersArray[trial.blue[loopcounter -1]]
-			redCircle = visual.GratingStim(win, tex=redTex, mask='raisedCos', color='red', size=256, pos=(-256, 0))
-			blueCircle = visual.GratingStim(win, tex=blueTex, mask='raisedCos', color='blue', size=256, pos=(256, 0))
+			redCircle = visual.GratingStim(win, tex=redTex, mask='raisedCos', color=trial.redColours[trial.redTone], size=256, pos=self.orientations[trial.posRed])
+			blueCircle = visual.GratingStim(win, tex=blueTex, mask='raisedCos', color=trial.blueColours[trial.blueTone], size=256, pos=self.orientations[trial.posBlue])
 			arrowVert = [(-0.4,0.05),(-0.4,-0.05),(-.2,-0.05),(-.2,-0.1),(0,0),(-.2,0.1),(-.2,0.05)] 
 			arrow = visual.ShapeStim(win, vertices=arrowVert, fillColor='green', size=256, lineColor='black', pos=(64, 0))
 			if trial.arrowOrientation == "left":
@@ -228,16 +245,16 @@ define inline_script new_inline_script_2
 			fixation.draw()
 			win.flip()	
 		
-		def showTarget(self, myKeyboard):
+		def showTarget(self):
 			'''Shows the target to the user'''
 			targetText = visual.TextStim(win, text = trial.target, color='green', pos=(0, 128), height=64, wrapWidth=700)
 			targetText.draw()
 			experiment.pressKeyText.draw()
 			win.flip()
-			myKeyboard.get_key()	
-			myKeyboard.flush()
+			self.myKeyboard.get_key()	
+			self.myKeyboard.flush()
 		
-		def getAnswer(self, experiment, myKeyboard):
+		def getAnswer(self, experiment):
 			'''Asks the user for an answer and retrieves it'''
 			keysString = ""
 			trial.correct = False
@@ -249,7 +266,7 @@ define inline_script new_inline_script_2
 				answerText.draw()
 				submitText.draw()
 				win.flip()
-				keys = myKeyboard.get_key()
+				keys = self.myKeyboard.get_key()
 				if 'return' in keys:
 					break
 				elif 'backspace' in keys:
@@ -259,7 +276,7 @@ define inline_script new_inline_script_2
 				else:
 					keysString = keysString + keys[0]
 			
-			myKeyboard.flush()
+			self.myKeyboard.flush()
 			try:
 				trial.answer = int(keysString)
 			except:
@@ -269,12 +286,12 @@ define inline_script new_inline_script_2
 				trial.correct = True
 			
 			if experiment.practice == True:
-				self.practiceMode(experiment, myKeyboard)
-				myKeyboard.flush()
+				self.practiceMode(experiment)
+				self.myKeyboard.flush()
 			
 			return(trial.answer, trial.correct)
 			
-		def practiceMode(self, experiment, myKeyboard):
+		def practiceMode(self, experiment):
 			'''Gives feedback if practice mode is on'''
 			correctText = ("FALSE", "red")
 			if trial.correct == True:
@@ -287,7 +304,7 @@ define inline_script new_inline_script_2
 				feedbackText2.draw()
 				feedbackText3.draw()
 				win.flip()
-				keys = myKeyboard.get_key()
+				keys = self.myKeyboard.get_key()
 				if 'q' in keys:
 					experiment.practice = False
 					print("Exiting practice mode...")
@@ -295,11 +312,12 @@ define inline_script new_inline_script_2
 				elif 'space' in keys:
 					print("Running another practice trial.")
 					break
-				myKeyboard.flush()
+				self.myKeyboard.flush()
 			return experiment.practice
 				
-	newExperiment = experiment(practice=True)
-	newExperiment.start(loops, myKeyboard)
+	
+	newExperiment = experiment(practice = True)
+	newExperiment.start()
 	__end__
 	set _prepare ""
 
