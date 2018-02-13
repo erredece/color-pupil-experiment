@@ -99,7 +99,7 @@ define inline_script new_inline_script_2
 	import sys
 	
 	class settings(object):
-		presentationTime = (100)
+		presentationTime = (100) # In milliseconds
 		loops = (70)
 		totalTrials = (5)
 		myKeyboard = keyboard()
@@ -158,7 +158,7 @@ define inline_script new_inline_script_2
 				startTime = clock.time()
 				newTrial.presentStimulus(loop)
 				core.wait(self.presentationTime * 0.001 * 0.7) # 70ms + 30 from processing the code
-				print(clock.time() - startTime)
+				#9print(clock.time() - startTime)
 			newTrial.getAnswer(self)
 			
 		def start(self):
@@ -233,14 +233,12 @@ define inline_script new_inline_script_2
 			or (trial.targetChance > 0.8 and trial.posRed == "left")))):
 				trial.arrowOrientation = "left"
 			else: 
-				trial.arrowOrientation = "right"
-			
+				trial.arrowOrientation = "right"	
 			if ((trial.red == trial.targetPool and trial.arrowOrientation == trial.posRed) or
 			(trial.blue == trial.targetPool and trial.arrowOrientation == trial.posBlue)):
 				trial.arrowCorrect = True
 			else:
 				trial.arrowCorrect = False		
-			
 			return( trial.arrowOrientation, trial.arrowCorrect)
 		
 		def presentStimulus(self, loopcounter):
@@ -285,11 +283,10 @@ define inline_script new_inline_script_2
 			win.flip()
 			self.myKeyboard.get_key()	
 			self.myKeyboard.flush()
-		
-		def getAnswer(self, experiment):
-			'''Asks the user for an answer and retrieves it'''
-			keysString = ""
-			trial.correct = False
+			
+		def answerScreen(self):
+			'''Prompts screen asking for an answer'''
+			trial.keysString = ""
 			while True:
 				answerInstructionsText = visual.TextStim(
 				win, 
@@ -299,7 +296,7 @@ define inline_script new_inline_script_2
 				height=24, 
 				wrapWidth=700)
 				
-				answerText = visual.TextStim(win, text = keysString + "_", color='black', pos=(0, -128), height=18, wrapWidth=700)
+				answerText = visual.TextStim(win, text = trial.keysString + "_", color='black', pos=(0, -128), height=18, wrapWidth=700)
 				submitText = visual.TextStim(win, text = "Press Enter to submit", color='black', pos=(0, -256), height=18, wrapWidth=700)
 				answerInstructionsText.draw()
 				answerText.draw()
@@ -309,24 +306,27 @@ define inline_script new_inline_script_2
 				if 'return' in keys:
 					break
 				elif 'backspace' in keys:
-					keysString = keysString[:-1]
+					trial.keysString = trial.keysString[:-1]
 				elif len(keys[0]) > 1:
-					keysString = keysString + " "
+					trial.keysString = trial.keysString + " "
 				else:
-					keysString = keysString + keys[0]
-			
+					trial.keysString = trial.keysString + keys[0]
 			self.myKeyboard.flush()
+			return trial.keysString
+		
+		def getAnswer(self, experiment):
+			'''Retrieves the answer'''
+			self.answerScreen()
+			trial.correct = False
 			try:
-				trial.answer = int(keysString)
+				trial.answer = int(trial.keysString)
 			except:
 				trial.answer = 0
-			
 			if trial.answer == trial.targetPool.count(trial.target):
 				trial.correct = True		
 			if experiment.practice == True:
 				self.practiceMode(experiment)
-				self.myKeyboard.flush()
-			
+				self.myKeyboard.flush()	
 			return(trial.answer, trial.correct)
 			
 		def practiceMode(self, experiment):
