@@ -35,7 +35,7 @@ set color_backend psycho
 set clock_backend psycho
 set canvas_backend psycho
 set bidi no
-set background "#818181"
+set background "#7F7F7F"
 
 define sequence experiment
 	set flush_keyboard yes
@@ -107,6 +107,7 @@ define inline_script new_inline_script_2
 		tones = ("bright", "dark")
 		redColours = {"bright" : "#FF0000", "dark" : "#A80000"}
 		blueColours = {"bright" : "#0000FF", "dark" : "#0000A8"}
+		defaultContrast = (0.75)
 	
 	class experiment(settings):	
 		def __init__(self, practice = False):
@@ -123,7 +124,6 @@ define inline_script new_inline_script_2
 				experiment.lettersArray.update({experiment.letters[letter]:array[::-1]})
 			if not experiment.letters:
 				raise Exception("Failed to find letters! Add a directory named \"letters\" and add the letter files as \".png\" files!")
-	
 			return(experiment.letters, experiment.lettersArray)
 		
 		def getWeights(self):
@@ -142,8 +142,12 @@ define inline_script new_inline_script_2
 			self.myKeyboard.get_key()
 			self.myKeyboard.flush()
 			return experiment.pressKeyText
-	
-		
+			
+		def resetContrasts(self):
+			'''Resets contrasts to the default value at the start of the experiment'''
+			experiment.brightRedContrast = 	experiment.darkRedContrast = experiment.brightBlueContrast = experiment.darkBlueContrast = self.defaultContrast
+			return(experiment.brightRedContrast, experiment.darkRedContrast, experiment.brightBlueContrast, experiment.darkBlueContrast)
+			
 		def run(self):
 			'''Runs the actual experiment'''
 			newTrial = trial()
@@ -154,13 +158,14 @@ define inline_script new_inline_script_2
 				startTime = clock.time()
 				newTrial.presentStimulus(loop)
 				core.wait(self.presentationTime * 0.001 * 0.7) # 70ms + 30 from processing the code
-				#print(clock.time() - startTime)
+				print(clock.time() - startTime)
 			newTrial.getAnswer(self)
 			
 		def start(self):
 			'''Initilializes the experiment'''
 			self.getLetters()
 			self.getWeights()
+			self.resetContrasts()
 			self.showInstructions()
 			while self.practice == True:
 				self.run()
@@ -170,27 +175,22 @@ define inline_script new_inline_script_2
 				self.run()
 	
 	class trial(experiment):
-		def __init__(self):
-			super(trial, self).__init__()
-		
 		def setup(self):
-			'''Sets up a trial'''
-			print(experiment.redWeights)
+			'''General trial set up'''
+			self.setTarget()
+			self.setupStimuli()
+			self.setupArrow()
+			gc.collect()
+			
+		def setTarget(self):
+			'''Sets the target and the letter pools'''
 			trial.target = random.choice(experiment.letters)
 			trial.nonTargets = []
 			trial.targetPool = []
 			trial.nonTargetPool = []
 			trial.red = []
 			trial.blue = []
-			trial.redTone = random.choice(self.tones)
-			trial.blueTone = random.choice(self.tones)
-			trial.posRed = random.choice(("left", "right"))
-			trial.posBlue = next(pos for pos in ("left", "right") if pos not in trial.posRed)
-			# trial.posBlue = next(iter(set(("left", "right")) - set (trial.posRed)))
 			trial.targetChance = random.uniform(0,1)
-			trial.arrowChance = random.uniform(0,1)
-			trial.arrowOrientation = "left"
-			trial.arrowCorrect = False
 			for letter in experiment.letters:
 				if letter != trial.target:
 					trial.nonTargets.append(letter)
@@ -206,8 +206,26 @@ define inline_script new_inline_script_2
 				trial.blue = trial.nonTargetPool
 			else:
 				trial.red = trial.nonTargetPool
-				trial.blue = trial.targetPool
+				trial.blue = trial.targetPool	
+			return(trial.target, trial.nonTargets, trial.targetPool, trial.nonTargetPool, trial.red, trial.blue, trial.targetChance)
+		
+		def setupStimuli(self):
+			'''Sets up the properties of the stimuli to be presented on the current trial'''
+			trial.redTone = random.choice(self.tones)
+			trial.blueTone = random.choice(self.tones)
+			trial.redContrast = experiment.brightRedContrast if trial.redTone == "bright" else experiment.darkRedContrast
+			trial.blueContrast = experiment.brightBlueContrast if trial.blueTone == "bright" else experiment.darkBlueContrast	
+			trial.posRed = random.choice(("left", "right"))
+			trial.posBlue = next(pos for pos in ("left", "right") if pos not in trial.posRed)
+			#trial.posBlue = next(iter(set(("left", "right")) - set (trial.posRed)))	
+			#print("Red is the target:", trial.red == trial.targetPool, "Chance:", trial.targetChance, "Red position:", trial.posRed, "Arrow:", trial.arrowOrientation)
+			return(trial.posRed, trial.posBlue, trial.redTone, trial.blueTone, trial.redContrast, trial.blueContrast)
 			
+		def setupArrow(self):
+			'''Sets up where will the arrow point'''
+			trial.arrowChance = random.uniform(0,1)
+			trial.arrowOrientation = "left"
+			trial.arrowCorrect = False
 			if ((
 			trial.red == trial.targetPool and ((trial.targetChance <= 0.8 and trial.posRed == "left") 
 			or (trial.targetChance > 0.8 and trial.posRed == "right"))) 
@@ -221,18 +239,32 @@ define inline_script new_inline_script_2
 			(trial.blue == trial.targetPool and trial.arrowOrientation == trial.posBlue)):
 				trial.arrowCorrect = True
 			else:
-				trial.arrowCorrect = False
+				trial.arrowCorrect = False		
 			
-			gc.collect()
-			print("Red is the target:", trial.red == trial.targetPool, "Chance:", trial.targetChance, "Red position:", trial.posRed, "Arrow:", trial.arrowOrientation)
-			return(trial.target, trial.nonTargets, trial.targetPool, trial.nonTargetPool, trial.red, trial.blue, trial.posRed, trial.posBlue, trial.redTone, trial.blueTone, trial.targetChance, trial.arrowOrientation)
+			return( trial.arrowOrientation, trial.arrowCorrect)
 		
 		def presentStimulus(self, loopcounter):
 			'''Presents a single set of stimuli'''
 			redTex = np.random.uniform(0.25, 1, (256,256, 4)) + experiment.lettersArray[trial.red[loopcounter - 1]]
 			blueTex = np.random.uniform(0.25, 1, (256,256, 4)) + experiment.lettersArray[trial.blue[loopcounter -1]]
-			redCircle = visual.GratingStim(win, tex=redTex, mask='raisedCos', color=trial.redColours[trial.redTone], size=256, pos=self.orientations[trial.posRed])
-			blueCircle = visual.GratingStim(win, tex=blueTex, mask='raisedCos', color=trial.blueColours[trial.blueTone], size=256, pos=self.orientations[trial.posBlue])
+			redCircle = visual.GratingStim(
+			win, 
+			tex = redTex, 
+			mask = 'raisedCos', 
+			color = trial.redColours[trial.redTone], 
+			size =256, 
+			pos = self.orientations[trial.posRed], 
+			contrast=trial.redContrast)
+			
+			blueCircle = visual.GratingStim(
+			win, 
+			tex=blueTex, 
+			mask ='raisedCos', 
+			color = trial.blueColours[trial.blueTone], 
+			size = 256, 
+			pos = self.orientations[trial.posBlue],
+			contrast = trial.blueContrast)
+			
 			arrowVert = [(-0.4,0.05),(-0.4,-0.05),(-.2,-0.05),(-.2,-0.1),(0,0),(-.2,0.1),(-.2,0.05)] 
 			arrow = visual.ShapeStim(win, vertices=arrowVert, fillColor='green', size=256, lineColor='black', pos=(64, 0))
 			if trial.arrowOrientation == "left":
@@ -259,7 +291,14 @@ define inline_script new_inline_script_2
 			keysString = ""
 			trial.correct = False
 			while True:
-				answerInstructionsText = visual.TextStim(win, text = "How many times did you see letter " + trial.target + "?", color='black', pos=(0, 128), height=24, wrapWidth=700)
+				answerInstructionsText = visual.TextStim(
+				win, 
+				text = "How many times did you see letter " + trial.target + "?", 
+				color='black', 
+				pos=(0, 128), 
+				height=24, 
+				wrapWidth=700)
+				
 				answerText = visual.TextStim(win, text = keysString + "_", color='black', pos=(0, -128), height=18, wrapWidth=700)
 				submitText = visual.TextStim(win, text = "Press Enter to submit", color='black', pos=(0, -256), height=18, wrapWidth=700)
 				answerInstructionsText.draw()
@@ -283,8 +322,7 @@ define inline_script new_inline_script_2
 				trial.answer = 0
 			
 			if trial.answer == trial.targetPool.count(trial.target):
-				trial.correct = True
-			
+				trial.correct = True		
 			if experiment.practice == True:
 				self.practiceMode(experiment)
 				self.myKeyboard.flush()
@@ -315,7 +353,6 @@ define inline_script new_inline_script_2
 				self.myKeyboard.flush()
 			return experiment.practice
 				
-	
 	newExperiment = experiment(practice = True)
 	newExperiment.start()
 	__end__
