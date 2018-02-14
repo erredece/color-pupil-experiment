@@ -108,6 +108,7 @@ define inline_script new_inline_script_2
 		redColours = {"bright" : "#FF0000", "dark" : "#A80000"}
 		blueColours = {"bright" : "#0000FF", "dark" : "#0000A8"}
 		defaultContrast = (0.75)
+		contrastParameter = (0.05)
 	
 	class experiment(settings):	
 		def __init__(self, practice = False):
@@ -246,22 +247,22 @@ define inline_script new_inline_script_2
 			redTex = np.random.uniform(0.25, 1, (256,256, 4)) + experiment.lettersArray[trial.red[loopcounter - 1]]
 			blueTex = np.random.uniform(0.25, 1, (256,256, 4)) + experiment.lettersArray[trial.blue[loopcounter -1]]
 			redCircle = visual.GratingStim(
-			win, 
-			tex = redTex, 
-			mask = 'raisedCos', 
-			color = trial.redColours[trial.redTone], 
-			size =256, 
-			pos = self.orientations[trial.posRed], 
-			contrast=trial.redContrast)
+				win, 
+				tex = redTex, 
+				mask = 'raisedCos', 
+				color = trial.redColours[trial.redTone], 
+				size =256, 
+				pos = self.orientations[trial.posRed], 
+				contrast=trial.redContrast)
 			
 			blueCircle = visual.GratingStim(
-			win, 
-			tex=blueTex, 
-			mask ='raisedCos', 
-			color = trial.blueColours[trial.blueTone], 
-			size = 256, 
-			pos = self.orientations[trial.posBlue],
-			contrast = trial.blueContrast)
+				win, 
+				tex=blueTex, 
+				mask ='raisedCos', 
+				color = trial.blueColours[trial.blueTone], 
+				size = 256, 
+				pos = self.orientations[trial.posBlue],
+				contrast = trial.blueContrast)
 			
 			arrowVert = [(-0.4,0.05),(-0.4,-0.05),(-.2,-0.05),(-.2,-0.1),(0,0),(-.2,0.1),(-.2,0.05)] 
 			arrow = visual.ShapeStim(win, vertices=arrowVert, fillColor='green', size=256, lineColor='black', pos=(64, 0))
@@ -289,13 +290,12 @@ define inline_script new_inline_script_2
 			trial.keysString = ""
 			while True:
 				answerInstructionsText = visual.TextStim(
-				win, 
-				text = "How many times did you see letter " + trial.target + "?", 
-				color='black', 
-				pos=(0, 128), 
-				height=24, 
-				wrapWidth=700)
-				
+					win, 
+					text = "How many times did you see letter " + trial.target + "?", 
+					color = 'black', 
+					pos = (0, 128), 
+					height = 24, 
+					wrapWidth = 700 )
 				answerText = visual.TextStim(win, text = trial.keysString + "_", color='black', pos=(0, -128), height=18, wrapWidth=700)
 				submitText = visual.TextStim(win, text = "Press Enter to submit", color='black', pos=(0, -256), height=18, wrapWidth=700)
 				answerInstructionsText.draw()
@@ -352,7 +352,32 @@ define inline_script new_inline_script_2
 					break
 				self.myKeyboard.flush()
 			return experiment.practice
-				
+		
+		def setContrasts(self, experiment):
+			'''Increases or decreases stimuli contrast based on the response being correct or not'''
+			if experiment.brightRedContrast != (0 or 1) and experiment.brightRedContrast == trial.redContrast:
+				if trial.correct == True:
+					experiment.brightRedContrast -= self.contrastParameter
+				else:
+					experiment.brightRedContrast += self.contrastParameter
+			if experiment.darkRedContrast != (0 or 1) and experiment.darkRedContrast == trial.redContrast:
+				if trial.correct == True:
+					experiment.darkRedContrast -= self.contrastParameter
+				else:
+					experiment.darkRedContrast += self.contrastParameter
+			if experiment.brightBlueContrast != (0 or 1) and experiment.brightBlueContrast == trial.blueContrast:
+				if trial.correct == True:
+					experiment.brightBlueContrast -= self.contrastParameter
+				else:
+					experiment.brightBlueContrast += self.contrastParameter
+			if experiment.darkBlueContrast != (0 or 1) and experiment.darkBlueContrast == trial.blueContrast:
+				if trial.correct == True:
+					experiment.darkBlueContrast -= self.contrastParameter
+				else:
+					experiment.darkBlueContrast += self.contrastParameter
+			
+			return(experiment.brightRedContrast, experiment.darkRedContrast, experiment.brightBlueContrast, experiment.darkBlueContrast)
+		
 	newExperiment = experiment(practice = True)
 	newExperiment.start()
 	__end__
