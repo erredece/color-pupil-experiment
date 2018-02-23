@@ -1,6 +1,6 @@
 ---
 API: 2.1
-OpenSesame: 3.2.0
+OpenSesame: 3.2.1
 Platform: nt
 ---
 set width 1024
@@ -26,7 +26,7 @@ set font_size 18
 set font_italic no
 set font_family mono
 set font_bold no
-set experiment_path "D:/GitHub/color-pupil-experiment"
+set experiment_path "D:\\GitHub\\color-pupil-experiment"
 set disable_garbage_collection yes
 set description "The main experiment item"
 set coordinates uniform
@@ -40,53 +40,12 @@ set background "#7F7F7F"
 define sequence experiment
 	set flush_keyboard yes
 	set description "Runs a number of items in sequence"
-	run new_inline_script_2 always
+	run new_pygaze_init always
+	run new_pygaze_start_recording always
+	run experiment_script always
+	run new_pygaze_stop_recording always
 
-define sketchpad fixation_point
-	set duration 1000
-	set description "Displays stimuli"
-	draw fixdot color=white show_if=always style=default x=0 y=0 z_index=0
-
-define inline_script init_var
-	set description "Executes Python code"
-	___run__
-	var.letters = ['F', 'J', 'W', 'H', 'Z', 'Q', 'E', 'X', 'A']
-	var.loops = 10
-	var.numTrials = 5
-	__end__
-	set _prepare ""
-
-define inline_script new_inline_script
-	set description "Executes Python code"
-	___run__
-	import random
-	import time
-	
-	letterListRed = []
-	letterListBlue = []
-	
-	for i in range(var.loops):
-		letterListRed.append(var.letters[random.randint(0, len(var.letters) -1)])
-		letterListBlue.append(var.letters[random.randint(0, len(var.letters) -1)])
-		while letterListBlue[i] == letterListBlue[i-1] and i > 1:
-			letterListBlue[i] = var.letters[random.randint(0, len(var.letters) -1)]
-		while letterListRed[i] == letterListBlue[i] or (letterListRed[i] == letterListRed[i-1] and i > 1): 
-			letterListRed[i] = var.letters[random.randint(0, len(var.letters) -1)]
-	
-	
-	loopcounter = 0
-	__end__
-	set _prepare ""
-
-define inline_script new_inline_script_1
-	set description "Executes Python code"
-	___run__
-	
-	loopcounter += 1
-	__end__
-	set _prepare ""
-
-define inline_script new_inline_script_2
+define inline_script experiment_script
 	set description "Executes Python code"
 	___run__
 	from psychopy import visual, event, core
@@ -105,8 +64,8 @@ define inline_script new_inline_script_2
 		myKeyboard = keyboard()
 		orientations = {"left" : (-256, 0), "right" : (256, 0)}
 		tones = ("bright", "dark")
-		redColours = {"bright" : "#FF0000", "dark" : "#A80000"}
-		blueColours = {"bright" : "#0000FF", "dark" : "#0000A8"}
+		redColours = {"bright" : "#FF0000", "dark" : "#7F0000"}
+		blueColours = {"bright" : "#0000FF", "dark" : "#00007F"}
 		defaultContrast = (0.75)
 		contrastParameter = (0.05)
 	
@@ -152,7 +111,7 @@ define inline_script new_inline_script_2
 		def run(self):
 			'''Runs the actual experiment'''
 			newTrial = trial()
-			newTrial.setup()
+			newTrial.setup(self)
 			newTrial.showTarget()
 			startTime = 0
 			for loop in range(self.loops):
@@ -176,10 +135,10 @@ define inline_script new_inline_script_2
 				self.run()
 	
 	class trial(experiment):
-		def setup(self):
+		def setup(self, experiment):
 			'''General trial set up'''
 			self.setTarget()
-			self.setupStimuli()
+			self.setupStimuli(experiment)
 			self.setupArrow()
 			gc.collect()
 			
@@ -210,7 +169,7 @@ define inline_script new_inline_script_2
 				trial.blue = trial.targetPool	
 			return(trial.target, trial.nonTargets, trial.targetPool, trial.nonTargetPool, trial.red, trial.blue, trial.targetChance)
 		
-		def setupStimuli(self):
+		def setupStimuli(self, experiment):
 			'''Sets up the properties of the stimuli to be presented on the current trial'''
 			trial.redTone = random.choice(self.tones)
 			trial.blueTone = random.choice(self.tones)
@@ -323,7 +282,8 @@ define inline_script new_inline_script_2
 			except:
 				trial.answer = 0
 			if trial.answer == trial.targetPool.count(trial.target):
-				trial.correct = True		
+				trial.correct = True	
+			self.setContrasts(experiment)	
 			if experiment.practice == True:
 				self.practiceMode(experiment)
 				self.myKeyboard.flush()	
@@ -355,85 +315,56 @@ define inline_script new_inline_script_2
 		
 		def setContrasts(self, experiment):
 			'''Increases or decreases stimuli contrast based on the response being correct or not'''
-			if experiment.brightRedContrast != (0 or 1) and experiment.brightRedContrast == trial.redContrast:
+			if 0.05 <= experiment.brightRedContrast <= 0.95 and trial.redTone == "bright":
 				if trial.correct == True:
-					experiment.brightRedContrast -= self.contrastParameter
+					experiment.brightRedContrast -= experiment.contrastParameter
 				else:
-					experiment.brightRedContrast += self.contrastParameter
-			if experiment.darkRedContrast != (0 or 1) and experiment.darkRedContrast == trial.redContrast:
+					experiment.brightRedContrast += experiment.contrastParameter
+			if 0.05 <= experiment.darkRedContrast <= 0.95 and trial.redTone == "dark":
 				if trial.correct == True:
-					experiment.darkRedContrast -= self.contrastParameter
+					experiment.darkRedContrast -= experiment.contrastParameter
 				else:
-					experiment.darkRedContrast += self.contrastParameter
-			if experiment.brightBlueContrast != (0 or 1) and experiment.brightBlueContrast == trial.blueContrast:
+					experiment.darkRedContrast += experiment.contrastParameter
+			if 0.05 <= experiment.brightBlueContrast <= 0.95 and trial.blueTone == "bright":
 				if trial.correct == True:
-					experiment.brightBlueContrast -= self.contrastParameter
+					experiment.brightBlueContrast -= experiment.contrastParameter
 				else:
-					experiment.brightBlueContrast += self.contrastParameter
-			if experiment.darkBlueContrast != (0 or 1) and experiment.darkBlueContrast == trial.blueContrast:
+					experiment.brightBlueContrast += experiment.contrastParameter
+			if 0.05 <= experiment.darkBlueContrast <= 0.95 and trial.blueTone == "dark":
 				if trial.correct == True:
-					experiment.darkBlueContrast -= self.contrastParameter
+					experiment.darkBlueContrast -= experiment.contrastParameter
 				else:
-					experiment.darkBlueContrast += self.contrastParameter
-			
+					experiment.darkBlueContrast += experiment.contrastParameter
+	
 			return(experiment.brightRedContrast, experiment.darkRedContrast, experiment.brightBlueContrast, experiment.darkBlueContrast)
+			
 		
 	newExperiment = experiment(practice = True)
 	newExperiment.start()
 	__end__
 	set _prepare ""
 
-define loop new_loop
-	set source_file ""
-	set source table
-	set repeat "[=var.numTrials]"
-	set order sequential
-	set description "Repeatedly runs another item"
-	set cycles 1
-	set continuous no
-	set break_if_on_first yes
-	set break_if never
-	setcycle 0 empty_column ""
-	run new_sequence
+define pygaze_init new_pygaze_init
+	set tracker_type "Advanced dummy (mouse simulation)"
+	set tobiiglasses_udpport 49152
+	set tobiiglasses_address "192.168.71.50"
+	set smi_send_port 4444
+	set smi_recv_port 5555
+	set smi_ip "127.0.0.1"
+	set sacc_vel_thr 35
+	set sacc_acc_thr 9500
+	set eyelink_pupil_size_mode area
+	set eyelink_force_drift_correct yes
+	set description "Initialize and calibrate eye tracker"
+	set calibrate yes
+	set calbeep yes
+	set _logfile automatic
 
-define loop new_loop_1
-	set source_file ""
-	set source table
-	set repeat "[=var.loops]"
-	set order sequential
-	set description "Repeatedly runs another item"
-	set cycles 1
-	set continuous no
-	set break_if_on_first yes
-	set break_if never
-	setcycle 0 empty_column ""
-	run new_sequence_1
+define pygaze_start_recording new_pygaze_start_recording
+	set status_msg start_experiment
+	set description "Puts the eye tracker into recording mode"
 
-define sequence new_sequence
-	set flush_keyboard yes
-	set description "Runs a number of items in sequence"
-	run fixation_point always
-	run new_inline_script always
-	run new_loop_1 always
-
-define sequence new_sequence_1
-	set flush_keyboard yes
-	set description "Runs a number of items in sequence"
-	run present_stimuli always
-	run new_inline_script_1 always
-
-define sketchpad present_stimuli
-	set duration 100
-	set description "Displays stimuli"
-	draw circle color="#0000ff" fill=1 penwidth=1 r=125 show_if=always x=-256 y=0 z_index=0
-	draw circle color="#aa0000" fill=1 penwidth=1 r=125 show_if=always x=256 y=0 z_index=0
-	draw textline center=1 color="#000000" font_bold=no font_family=mono font_italic=no font_size=100 html=yes show_if=always text="[=letterListBlue\\[loopcounter\\]]" x=-256 y=0 z_index=0
-	draw textline center=1 color="#000000" font_bold=no font_family=mono font_italic=no font_size=100 html=yes show_if=always text="[=letterListRed\\[loopcounter\\]]" x=256 y=0 z_index=0
-
-define sketchpad welcome
-	set start_response_interval no
-	set reset_variables no
-	set duration keypress
-	set description "Displays stimuli"
-	draw textline center=1 color=white font_bold=no font_family=serif font_italic=no font_size=32 html=yes show_if=always text="OpenSesame 3.1 <i>Jazzy James</i>" x=0 y=0 z_index=0
+define pygaze_stop_recording new_pygaze_stop_recording
+	set status_msg stop_experiment
+	set description "Stops recording of eye tracking data"
 
