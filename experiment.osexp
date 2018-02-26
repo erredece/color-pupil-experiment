@@ -113,6 +113,10 @@ define inline_script experiment_script
 			eyetracker.log("var [list_letters] [%s]" % " ".join(sorted(self.letters)))
 			eyetracker.log("var [presentations] [%d]" % self.loops)
 			eyetracker.log("var [total_trials] [%d]" % self.totalTrials)
+			eyetracker.log("var [bright_red_colour] [%s]" % self.redColours["bright"])
+			eyetracker.log("var [dark_red_colour] [%s]" % self.redColours["dark"])
+			eyetracker.log("var [bright_blue_colour] [%s]" % self.blueColours["bright"])
+			eyetracker.log("var [dark_blue_colour] [%s]" % self.blueColours["dark"])
 			eyetracker.log("var [default_contrast] [%f]" % self.defaultContrast)
 			
 		def run(self):
