@@ -107,6 +107,13 @@ define inline_script experiment_script
 			'''Resets contrasts to the default value at the start of the experiment'''
 			experiment.brightRedContrast = 	experiment.darkRedContrast = experiment.brightBlueContrast = experiment.darkBlueContrast = self.defaultContrast
 			return(experiment.brightRedContrast, experiment.darkRedContrast, experiment.brightBlueContrast, experiment.darkBlueContrast)
+		
+		def logSettings(self):
+			'''Logs settings to the EDF'''
+			eyetracker.log("var [list_letters] [%s]" % " ".join(sorted(self.letters)))
+			eyetracker.log("var [presentations] [%d]" % self.loops)
+			eyetracker.log("var [total_trials] [%d]" % self.totalTrials)
+			eyetracker.log("var [default_contrast] [%f]" % self.defaultContrast)
 			
 		def run(self):
 			'''Runs the actual experiment'''
@@ -117,22 +124,27 @@ define inline_script experiment_script
 			for loop in range(self.loops):
 				startTime = clock.time()
 				newTrial.presentStimulus(loop)
-				core.wait(self.presentationTime * 0.001 * 0.7) # 70ms + 30 from processing the code
-				#9print(clock.time() - startTime)
+				eyetracker.log("[pupil_size] [%f]" % eyetracker.pupil_size())
+				core.wait(self.presentationTime * 0.001 * 0.6) # 60ms + 30 from processing the code
+				#print(clock.time() - startTime)
 			newTrial.getAnswer(self)
+			newTrial.logTracker(self)
 			
 		def start(self):
 			'''Initilializes the experiment'''
 			self.getLetters()
 			self.getWeights()
 			self.resetContrasts()
+			self.logSettings()
 			self.showInstructions()
 			while self.practice == True:
 				self.run()
 			print("Success.")
 			self.getWeights()
 			for trials in range(self.totalTrials):
+				eyetracker.log("start_trial [%d]" % (trials + 1))
 				self.run()
+				eyetracker.log("end_trial")
 	
 	class trial(experiment):
 		def setup(self, experiment):
@@ -280,7 +292,7 @@ define inline_script experiment_script
 			try:
 				trial.answer = int(trial.keysString)
 			except:
-				trial.answer = 0
+				trial.answer = None
 			if trial.answer == trial.targetPool.count(trial.target):
 				trial.correct = True	
 			self.setContrasts(experiment)	
@@ -338,7 +350,30 @@ define inline_script experiment_script
 	
 			return(experiment.brightRedContrast, experiment.darkRedContrast, experiment.brightBlueContrast, experiment.darkBlueContrast)
 			
-		
+		def logTracker(self, experiment):
+			'''Logs variables to the EDF'''
+			eyetracker.log("var [practice:mode] [%s]" % str(experiment.practice))
+			eyetracker.log("var [trial_answer] [%s]" % trial.answer)
+			eyetracker.log("var [trial_correct] [%s]" % str(trial.correct))
+			eyetracker.log("var [target_letter] [%s]" % trial.target)
+			if trial.red == trial.targetPool:
+				eyetracker.log("var [target_object] [red]")
+			else:
+				eyetracker.log("var [target_object] [blue]")
+			eyetracker.log("var [tone_red] [%s]" % trial.redTone)
+			eyetracker.log("var [tone_blue] [%s]" % trial.blueTone)
+			eyetracker.log("var [pos_red] [%s]" % trial.posRed)
+			eyetracker.log("var [pos_blue] [%s]" % trial.posBlue)
+			eyetracker.log("var [arrow_orientation] [%s]" % trial.arrowOrientation)
+			eyetracker.log("var [arrow_correct] [%s]" % trial.arrowCorrect)
+			eyetracker.log("var [bright_red_contrast] [%s]" % experiment.brightRedContrast)
+			eyetracker.log("var [dark_red_contrast] [%s]" % experiment.darkRedContrast)
+			eyetracker.log("var [bright_blue_contrast] [%s]" % experiment.brightBlueContrast)
+			eyetracker.log("var [dark_blue_contrast] [%s]" % experiment.darkBlueContrast)
+			
+			
+			
+			
 	newExperiment = experiment(practice = True)
 	newExperiment.start()
 	__end__
