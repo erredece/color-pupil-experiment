@@ -15,6 +15,8 @@ set sound_channels 2
 set sound_buf_size 1024
 set sampler_backend legacy
 set round_decimals 2
+set psychopy_screen 0
+set psychopy_monitor testMonitor
 set mouse_backend psycho
 set keyboard_backend psycho
 set height 768
@@ -68,6 +70,7 @@ define inline_script experiment_script
 		blueColours = {"bright" : "#0000FF", "dark" : "#00007F"}
 		defaultContrast = (0.75)
 		contrastParameter = (0.05)
+		answers = []
 	
 	class experiment(settings):	
 		def __init__(self, practice = False):
@@ -94,14 +97,133 @@ define inline_script experiment_script
 		
 		def showInstructions(self):
 			'''Presents instructions to the user'''
-			instructions = visual.TextStim(win, text= "Please, count how many times the target letter appears", color='black', pos=(0, 256), height=32, wrapWidth=800)
-			experiment.pressKeyText = visual.TextStim(win, text= "Press any key to continue.", color='black', pos=(0, -256), height=26, wrapWidth=800)
-			instructions.draw()
+			instructionsBox = visual.Rect(
+				win, 
+				width= 1100, 
+				height = 400, 
+				pos = (0, 128), 
+				lineColor="navy", 
+				lineWidth = 3, 
+				fillColor = "lightblue"
+				)
+			instructions1 = visual.TextStim(
+				win, 
+				text= "On this experiment, you will see a red and a blue circle on the screen and an arrow pointing at one of them. Every 100ms, a letter will be flashed inside both circles.", 
+				color='black', 
+				pos=(0, 256), 
+				height=26, 
+				wrapWidth=1000
+				)
+			instructions2 = visual.TextStim(
+				win, 
+				text= "Your task simply consists on, first, looking at the center of the screen. There is a cross, in the middle of the arrow, where you should keep your sight on. While you keep staring at the cross, you will have to count how many times a certain letter, specified before every trial, appears in one of the circles.", 
+				color='black', 
+				pos=(0, 128), 
+				height=26, 
+				wrapWidth=1000
+				)
+			instructions3 = visual.TextStim(
+				win, 
+				text= "You will now perform as many practice trials as you feel you need. Once you grasp the idea behind this task, you may proceed to perform the experiment.", 
+				color='black', 
+				pos=(0, 0), 
+				height=26, 
+				wrapWidth=1000
+				)
+			
+			experiment.pressKeyText = visual.TextStim(
+				win, 
+				text= "Press any key to continue.", 
+				color='black', 
+				pos=(0, -256), 
+				height=26, 
+				wrapWidth=800
+				)
+			instructionsBox.draw()
+			instructions1.draw()
+			instructions2.draw()
+			instructions3.draw()
 			experiment.pressKeyText.draw()
 			win.flip()
 			self.myKeyboard.get_key()
 			self.myKeyboard.flush()
 			return experiment.pressKeyText
+			
+		def practiceExited(self):
+			'''Lets the subject know that has exited practice mode and the real experiment begins now'''
+			messageBox = visual.Rect(
+				win, 
+				width= 1100, 
+				height = 192, 
+				pos = (0, 128), 
+				lineColor="navy", 
+				lineWidth = 3, 
+				fillColor = "lightblue"
+				)
+			message1 = visual.TextStim(
+				win, 
+				text= "From now on, all trials are part of the actual experiment. No feedback will be given throughout it, but at the end you will receive your final score", 
+				color='black', 
+				pos=(0, 160), 
+				height=26, 
+				wrapWidth=1000
+				)
+			message2 = visual.TextStim(
+				win, 
+				text= "Good luck and have fun!", 
+				color='black', 
+				pos=(0, 72), 
+				height=32, 
+				wrapWidth=1000
+				)
+			messageBox.draw()
+			message1.draw()
+			message2.draw()
+			experiment.pressKeyText.draw()
+			win.flip()
+			self.myKeyboard.get_key()
+			self.myKeyboard.flush()
+			
+		def endScreen(self):
+			'''End screen where we give the final accuracy score and conclude the experiment'''
+			
+			experiment.finalScore = "{0:.2f}".format(float(experiment.answers.count(True)) / float(len(experiment.answers)) * 100)
+			scoreBox = visual.Rect(
+				win, 
+				width= 1100, 
+				height = 192, 
+				pos = (0, 100), 
+				lineColor="navy", 
+				lineWidth = 3, 
+				fillColor = "lightblue"
+				)
+		
+			scoreText = visual.TextStim(
+				win, 
+				text= "That is the end of the experiment! Your final score was %s." % experiment.finalScore, 
+				color='black', 
+				pos=(0, 160), 
+				height=26, 
+				wrapWidth=1000
+				)
+			
+			endText = visual.TextStim(
+				win, 
+				text= "Thank you for participating! Please, press any space to quit and end the experiment.", 
+				color='black', 
+				pos=(0, 72), 
+				height=26, 
+				wrapWidth=1000
+				)
+			
+			scoreBox.draw()
+			scoreText.draw()
+			endText.draw()
+			win.flip()
+			self.myKeyboard.get_key()
+			self.myKeyboard.flush()
+			eyetracker.log("var [accuracy] [%s]" % experiment.finalScore)
+			return experiment.finalScore
 			
 		def resetContrasts(self):
 			'''Resets contrasts to the default value at the start of the experiment'''
@@ -128,7 +250,7 @@ define inline_script experiment_script
 			for loop in range(self.loops):
 				startTime = clock.time()
 				newTrial.presentStimulus(loop)
-				eyetracker.log("[pupil_size] [%f]" % eyetracker.pupil_size())
+				eyetracker.log("var [pupil_size] [%f]" % eyetracker.pupil_size())
 				core.wait(self.presentationTime * 0.001 * 0.6) # 60ms + 30 from processing the code
 				#print(clock.time() - startTime)
 			newTrial.getAnswer(self)
@@ -143,12 +265,13 @@ define inline_script experiment_script
 			self.showInstructions()
 			while self.practice == True:
 				self.run()
-			print("Success.")
 			self.getWeights()
+			self.practiceExited()
 			for trials in range(self.totalTrials):
 				eyetracker.log("start_trial [%d]" % (trials + 1))
 				self.run()
 				eyetracker.log("end_trial")
+			self.endScreen()
 	
 	class trial(experiment):
 		def setup(self, experiment):
@@ -228,7 +351,8 @@ define inline_script experiment_script
 				color = trial.redColours[trial.redTone], 
 				size =256, 
 				pos = self.orientations[trial.posRed], 
-				contrast=trial.redContrast)
+				contrast=trial.redContrast
+				)
 			
 			blueCircle = visual.GratingStim(
 				win, 
@@ -237,10 +361,18 @@ define inline_script experiment_script
 				color = trial.blueColours[trial.blueTone], 
 				size = 256, 
 				pos = self.orientations[trial.posBlue],
-				contrast = trial.blueContrast)
+				contrast = trial.blueContrast
+				)
 			
 			arrowVert = [(-0.4,0.05),(-0.4,-0.05),(-.2,-0.05),(-.2,-0.1),(0,0),(-.2,0.1),(-.2,0.05)] 
-			arrow = visual.ShapeStim(win, vertices=arrowVert, fillColor='green', size=256, lineColor='black', pos=(64, 0))
+			arrow = visual.ShapeStim(
+				win, 
+				vertices=arrowVert, 
+				fillColor='forestgreen', 
+				size=256, 
+				lineColor='black', 
+				pos=(64, 0)
+				)
 			if trial.arrowOrientation == "left":
 				arrow.vertices = np.negative(arrowVert)
 				arrow.pos = (-64, 0)
@@ -253,7 +385,14 @@ define inline_script experiment_script
 		
 		def showTarget(self):
 			'''Shows the target to the user'''
-			targetText = visual.TextStim(win, text = trial.target, color='green', pos=(0, 128), height=64, wrapWidth=700)
+			targetText = visual.TextStim(
+				win, 
+				text = trial.target, 
+				color='forestgreen', 
+				pos=(0, 128), 
+				height=256, 
+				wrapWidth=700
+				)
 			targetText.draw()
 			experiment.pressKeyText.draw()
 			win.flip()
@@ -262,6 +401,7 @@ define inline_script experiment_script
 			
 		def answerScreen(self):
 			'''Prompts screen asking for an answer'''
+			#print(trial.targetPool.count(trial.target))
 			trial.keysString = ""
 			while True:
 				answerInstructionsText = visual.TextStim(
@@ -270,9 +410,24 @@ define inline_script experiment_script
 					color = 'black', 
 					pos = (0, 128), 
 					height = 24, 
-					wrapWidth = 700 )
-				answerText = visual.TextStim(win, text = trial.keysString + "_", color='black', pos=(0, -128), height=18, wrapWidth=700)
-				submitText = visual.TextStim(win, text = "Press Enter to submit", color='black', pos=(0, -256), height=18, wrapWidth=700)
+					wrapWidth = 700 
+					)
+				answerText = visual.TextStim(
+					win, 
+					text = trial.keysString + "_", 
+					color='black', 
+					pos=(0, -128), 
+					height=18, 
+					wrapWidth=700
+					)
+				submitText = visual.TextStim(
+					win, 
+					text = "Press Enter to submit", 
+					color='black', 
+					pos=(0, -256), 
+					height=18, 
+					wrapWidth=700
+					)
 				answerInstructionsText.draw()
 				answerText.draw()
 				submitText.draw()
@@ -303,17 +458,39 @@ define inline_script experiment_script
 			if experiment.practice == True:
 				self.practiceMode(experiment)
 				self.myKeyboard.flush()	
+			else:
+				experiment.answers.append(trial.correct)
 			return(trial.answer, trial.correct)
 			
 		def practiceMode(self, experiment):
 			'''Gives feedback if practice mode is on'''
 			correctText = ("FALSE", "red")
 			if trial.correct == True:
-				correctText = ("CORRECT", "green")
+				correctText = ("CORRECT", "limegreen")
 			while True:
-				feedbackText = visual.TextStim(win, text = correctText[0], color=correctText[1], pos=(0, 128), height=64, wrapWidth=700)
-				feedbackText2 = visual.TextStim(win, text = "Press Q to exit practice mode.", color="black", pos=(0, -224), height=18, wrapWidth=700)
-				feedbackText3 = visual.TextStim(win, text = "Otherwise, press space to continue in practice mode.", color="black", pos=(0, -256), height=18, wrapWidth=700)
+				feedbackText = visual.TextStim(
+					win,
+					text = correctText[0], 
+					color=correctText[1], 
+					pos=(0, 128), 
+					height=64, 
+					wrapWidth=700)
+				feedbackText2 = visual.TextStim(
+					win, 
+					text = "Press Q to exit practice mode.", 
+					color="black", 
+					pos=(0, -224), 
+					height=18, 
+					wrapWidth=700
+					)
+				feedbackText3 = visual.TextStim(
+					win, 
+					text = "Otherwise, press space to continue in practice mode.", 
+					color="black", 
+					pos=(0, -256), 
+					height=18, 
+					wrapWidth=700
+					)
 				feedbackText.draw()
 				feedbackText2.draw()
 				feedbackText3.draw()
@@ -321,10 +498,8 @@ define inline_script experiment_script
 				keys = self.myKeyboard.get_key()
 				if 'q' in keys:
 					experiment.practice = False
-					print("Exiting practice mode...")
 					break
 				elif 'space' in keys:
-					print("Running another practice trial.")
 					break
 				self.myKeyboard.flush()
 			return experiment.practice
@@ -374,9 +549,6 @@ define inline_script experiment_script
 			eyetracker.log("var [dark_red_contrast] [%s]" % experiment.darkRedContrast)
 			eyetracker.log("var [bright_blue_contrast] [%s]" % experiment.brightBlueContrast)
 			eyetracker.log("var [dark_blue_contrast] [%s]" % experiment.darkBlueContrast)
-			
-			
-			
 			
 	newExperiment = experiment(practice = True)
 	newExperiment.start()
