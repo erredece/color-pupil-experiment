@@ -62,7 +62,7 @@ define inline_script experiment_script
 	class settings(object):
 		presentationTime = (100) # In milliseconds
 		loops = (70)
-		totalTrials = (5)
+		totalTrials = (3)
 		myKeyboard = keyboard()
 		orientations = {"left" : (-256, 0), "right" : (256, 0)}
 		tones = ("bright", "dark")
@@ -70,7 +70,7 @@ define inline_script experiment_script
 		blueColours = {"bright" : "#0000FF", "dark" : "#00007F"}
 		defaultContrast = (0.75)
 		contrastParameter = (0.05)
-		answers = []
+		responses = []
 	
 	class experiment(settings):	
 		def __init__(self, practice = False):
@@ -187,7 +187,7 @@ define inline_script experiment_script
 		def endScreen(self):
 			'''End screen where we give the final accuracy score and conclude the experiment'''
 			
-			experiment.finalScore = "{0:.2f}".format(float(experiment.answers.count(True)) / float(len(experiment.answers)) * 100)
+			experiment.finalScore = "{0:.2f}".format(float(experiment.responses.count(True)) / float(len(experiment.responses)) * 100)
 			scoreBox = visual.Rect(
 				win, 
 				width= 1100, 
@@ -200,7 +200,7 @@ define inline_script experiment_script
 		
 			scoreText = visual.TextStim(
 				win, 
-				text= "That is the end of the experiment! Your final score was %s." % experiment.finalScore, 
+				text= "That is the end of the experiment! Your final score was %s %%." % experiment.finalScore, 
 				color='black', 
 				pos=(0, 160), 
 				height=26, 
@@ -403,6 +403,7 @@ define inline_script experiment_script
 			'''Prompts screen asking for an answer'''
 			#print(trial.targetPool.count(trial.target))
 			trial.keysString = ""
+			self.myKeyboard.flush()
 			while True:
 				answerInstructionsText = visual.TextStim(
 					win, 
@@ -459,7 +460,7 @@ define inline_script experiment_script
 				self.practiceMode(experiment)
 				self.myKeyboard.flush()	
 			else:
-				experiment.answers.append(trial.correct)
+				experiment.responses.append(trial.correct)
 			return(trial.answer, trial.correct)
 			
 		def practiceMode(self, experiment):
