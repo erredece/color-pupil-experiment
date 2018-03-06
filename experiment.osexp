@@ -60,14 +60,14 @@ define inline_script experiment_script
 	import sys
 	
 	class settings(object):
-		presentationTime = (100) # In milliseconds
-		loops = (70)
-		totalTrials = (3)
+		presentationTime = (250) # In milliseconds
+		loops = (28)
+		totalTrials = (5)
 		myKeyboard = keyboard()
 		orientations = {"left" : (-256, 0), "right" : (256, 0)}
 		tones = ("bright", "dark")
-		redColours = {"bright" : "#FF0000", "dark" : "#7F0000"}
-		blueColours = {"bright" : "#0000FF", "dark" : "#00007F"}
+		redColours = {"bright" : (255, 0, 0), "dark" : (178.5, 0, 0)}
+		blueColours = {"bright" : (0, 0, 255), "dark" : (0, 0, 178.5)}
 		defaultContrast = (0.75)
 		contrastParameter = (0.05)
 		responses = []
@@ -222,7 +222,7 @@ define inline_script experiment_script
 			win.flip()
 			self.myKeyboard.get_key()
 			self.myKeyboard.flush()
-			eyetracker.log("var [accuracy] [%s]" % experiment.finalScore)
+			eyetracker.log("var accuracy %s" % experiment.finalScore)
 			return experiment.finalScore
 			
 		def resetContrasts(self):
@@ -232,14 +232,14 @@ define inline_script experiment_script
 		
 		def logSettings(self):
 			'''Logs settings to the EDF'''
-			eyetracker.log("var [list_letters] [%s]" % " ".join(sorted(self.letters)))
-			eyetracker.log("var [presentations] [%d]" % self.loops)
-			eyetracker.log("var [total_trials] [%d]" % self.totalTrials)
-			eyetracker.log("var [bright_red_colour] [%s]" % self.redColours["bright"])
-			eyetracker.log("var [dark_red_colour] [%s]" % self.redColours["dark"])
-			eyetracker.log("var [bright_blue_colour] [%s]" % self.blueColours["bright"])
-			eyetracker.log("var [dark_blue_colour] [%s]" % self.blueColours["dark"])
-			eyetracker.log("var [default_contrast] [%f]" % self.defaultContrast)
+			eyetracker.log("var list_letters %s" % " ".join(sorted(self.letters)))
+			eyetracker.log("var presentations %d" % self.loops)
+			eyetracker.log("var total_trials %d" % self.totalTrials)
+			eyetracker.log("var bright_red_colour %s" % str(self.redColours["bright"]))
+			eyetracker.log("var dark_red_colour %s" % str(self.redColours["dark"]))
+			eyetracker.log("var bright_blue_colour %s" % str(self.blueColours["bright"]))
+			eyetracker.log("var dark_blue_colour %s" % str(self.blueColours["dark"]))
+			eyetracker.log("var default_contrast %f" % self.defaultContrast)
 			
 		def run(self):
 			'''Runs the actual experiment'''
@@ -250,7 +250,7 @@ define inline_script experiment_script
 			for loop in range(self.loops):
 				startTime = clock.time()
 				newTrial.presentStimulus(loop)
-				eyetracker.log("var [pupil_size] [%f]" % eyetracker.pupil_size())
+				eyetracker.log("var pupil_size %f" % eyetracker.pupil_size())
 				core.wait(self.presentationTime * 0.001 * 0.6) # 60ms + 30 from processing the code
 				#print(clock.time() - startTime)
 			newTrial.getAnswer(self)
@@ -349,6 +349,7 @@ define inline_script experiment_script
 				tex = redTex, 
 				mask = 'raisedCos', 
 				color = trial.redColours[trial.redTone], 
+				colorSpace = 'rgb255',
 				size =256, 
 				pos = self.orientations[trial.posRed], 
 				contrast=trial.redContrast
@@ -359,6 +360,7 @@ define inline_script experiment_script
 				tex=blueTex, 
 				mask ='raisedCos', 
 				color = trial.blueColours[trial.blueTone], 
+				colorSpace = 'rgb255',
 				size = 256, 
 				pos = self.orientations[trial.posBlue],
 				contrast = trial.blueContrast
@@ -407,7 +409,7 @@ define inline_script experiment_script
 			while True:
 				answerInstructionsText = visual.TextStim(
 					win, 
-					text = "How many times did you see letter " + trial.target + "?", 
+					text = "How many times did you see letter %s ?" % trial.target, 
 					color = 'black', 
 					pos = (0, 128), 
 					height = 24, 
@@ -532,24 +534,24 @@ define inline_script experiment_script
 			
 		def logTracker(self, experiment):
 			'''Logs variables to the EDF'''
-			eyetracker.log("var [practice:mode] [%s]" % str(experiment.practice))
-			eyetracker.log("var [trial_answer] [%s]" % trial.answer)
-			eyetracker.log("var [trial_correct] [%s]" % str(trial.correct))
-			eyetracker.log("var [target_letter] [%s]" % trial.target)
+			eyetracker.log("var practicemode %s" % str(experiment.practice))
+			eyetracker.log("var trial_answer %s" % trial.answer)
+			eyetracker.log("var trial_correct %s" % str(trial.correct))
+			eyetracker.log("var target_letter %s" % trial.target)
 			if trial.red == trial.targetPool:
-				eyetracker.log("var [target_object] [red]")
+				eyetracker.log("var target_object red")
 			else:
-				eyetracker.log("var [target_object] [blue]")
-			eyetracker.log("var [tone_red] [%s]" % trial.redTone)
-			eyetracker.log("var [tone_blue] [%s]" % trial.blueTone)
-			eyetracker.log("var [pos_red] [%s]" % trial.posRed)
-			eyetracker.log("var [pos_blue] [%s]" % trial.posBlue)
-			eyetracker.log("var [arrow_orientation] [%s]" % trial.arrowOrientation)
-			eyetracker.log("var [arrow_correct] [%s]" % trial.arrowCorrect)
-			eyetracker.log("var [bright_red_contrast] [%s]" % experiment.brightRedContrast)
-			eyetracker.log("var [dark_red_contrast] [%s]" % experiment.darkRedContrast)
-			eyetracker.log("var [bright_blue_contrast] [%s]" % experiment.brightBlueContrast)
-			eyetracker.log("var [dark_blue_contrast] [%s]" % experiment.darkBlueContrast)
+				eyetracker.log("var target_object blue")
+			eyetracker.log("var tone_red %s" % trial.redTone)
+			eyetracker.log("var tone_blue %s" % trial.blueTone)
+			eyetracker.log("var pos_red %s" % trial.posRed)
+			eyetracker.log("var pos_blue %s" % trial.posBlue)
+			eyetracker.log("var arrow_orientation %s" % trial.arrowOrientation)
+			eyetracker.log("var arrow_correct %s" % trial.arrowCorrect)
+			eyetracker.log("var bright_red_contrast %s" % experiment.brightRedContrast)
+			eyetracker.log("var dark_red_contrast %s" % experiment.darkRedContrast)
+			eyetracker.log("var bright_blue_contrast %s" % experiment.brightBlueContrast)
+			eyetracker.log("var dark_blue_contrast %s" % experiment.darkBlueContrast)
 			
 	newExperiment = experiment(practice = True)
 	newExperiment.start()
