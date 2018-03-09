@@ -3,7 +3,7 @@ API: 2.1
 OpenSesame: 3.2.1
 Platform: nt
 ---
-set width 1024
+set width 1920
 set uniform_coordinates yes
 set title "New experiment"
 set subject_parity even
@@ -19,7 +19,7 @@ set psychopy_screen 0
 set psychopy_monitor testMonitor
 set mouse_backend psycho
 set keyboard_backend psycho
-set height 768
+set height 1080
 set fullscreen no
 set form_clicks no
 set foreground white
@@ -39,13 +39,137 @@ set canvas_backend psycho
 set bidi no
 set background "#7F7F7F"
 
+define inline_script calibrate
+	set description "Executes Python code"
+	___run__
+	import numpy as np
+	from datamatrix import series as srs
+	
+	ydata = np.array(pupil_trace)
+	ysmooth = srs._smooth(ydata, winlen=15)
+	xdata = np.linspace(0, len(ydata)*30, len(ydata))
+	
+	var.ymax = ysmooth[:30].max()
+	var.ymin = ysmooth[:30].min()
+	var.ydiff = var.ymax-var.ymin
+	ydiff_list.append(var.ydiff)
+		
+	if len(ydiff_list) > 1:
+		if ydiff_list[-1] > ydiff_list[-2]:
+			pupil_response = 'blue' if var.color == 'blue' else 'red'
+		else:
+			pupil_response = 'red' if var.color == 'blue' else 'blue'
+	else:
+		pupil_response = ''
+	pupil_responses.append(pupil_response)
+	
+	if len(pupil_responses) > 1:
+		print(pupil_responses, pupil_responses[-2:])
+		if 'red' not in pupil_responses[-2:]:
+			var.step = 'red_up'
+			var.red_intensity = min(100, var.red_intensity+var.step_size)
+		elif 'blue' not in pupil_responses[-2:]:
+			var.step = 'red_down'
+			var.red_intensity = max(10, var.red_intensity-var.step_size)
+		else:
+			var.step = ''
+	else:
+		var.step = ''
+	print(var.step)
+	__end__
+	set _prepare ""
+
+define sequence calibration
+	set flush_keyboard yes
+	set description "Runs a number of items in sequence"
+	run settings always
+	run instructions_check always
+	run init always
+	run collect_pupil_size always
+	run instructions_equiluminance always
+	run equiluminance_loop always
+
+define inline_script collect_pupil_size
+	set description "Executes Python code"
+	___run__
+	def collect_pupil_size():
+		
+		global pupil_trace, time_trace
+		
+		last_sample_time = 0
+		pupil_trace = []
+		time_trace = []
+		keep_going = True
+		sampling_rate = 1000. / 30
+		var.response = None
+		yield
+	
+		while keep_going:
+			# If a response is given, set the coroutines duration to 0, causing
+			# it to stop
+			if var.response is not None:
+				items['coroutines'].var.duration = 0
+				break	
+			# Collect pupil size
+			t = clock.time()
+			if t - last_sample_time >= sampling_rate:
+				last_sample_time = t
+				pupil_trace.append(eyetracker.pupil_size())
+				time_trace.append(t)
+		
+			keep_going = yield
+	__end__
+	set _prepare ""
+
+define coroutines coroutines
+	set function_name collect_pupil_size
+	set flush_keyboard yes
+	set end_after_item ""
+	set duration "[duration_total]"
+	set description "Run items simultaneously"
+	run keyboard_response end="[duration_total]" runif=always start=0
+	run fixation_dot_1 end="[duration_stim]" runif=always start="[duration_stim]"
+	run stimulus_on end=0 runif=always start=0
+
+define sketchpad done
+	set duration keypress
+	set description "Displays stimuli"
+	draw textline center=1 color=white font_bold=no font_family=mono font_italic=no font_size=20 html=yes show_if=always text="<b>Finished!</b><br /><br />Press any key to exit" x=0 y=0 z_index=0
+
+define inline_script end_phase
+	set description "Executes Python code"
+	___run__
+	eyetracker.log('end_phase stimulus')
+	__end__
+	set _prepare ""
+
+define loop equiluminance_loop
+	set source_file ""
+	set source table
+	set repeat "[repeat_equiluminance]"
+	set order sequential
+	set description "Repeatedly runs another item"
+	set cycles 2
+	set continuous no
+	set break_if_on_first yes
+	set break_if never
+	setcycle 0 color "[color1]"
+	setcycle 0 duration_stim "[stimon_equiluminance]"
+	setcycle 0 duration_total "=var.stimon_equiluminance+var.stimoff_equiluminance"
+	setcycle 0 mode calibrate
+	setcycle 1 color "[color2]"
+	setcycle 1 duration_stim "[stimon_equiluminance]"
+	setcycle 1 duration_total "=var.stimon_equiluminance+var.stimoff_equiluminance"
+	setcycle 1 mode calibrate
+	run pupil_sequence
+
 define sequence experiment
 	set flush_keyboard yes
 	set description "Runs a number of items in sequence"
-	run new_pygaze_init always
-	run new_pygaze_start_recording always
-	run experiment_script always
-	run new_pygaze_stop_recording always
+	run new_inline_script always
+	run pygaze_init always
+	run calibration always
+	run main always
 
 define inline_script experiment_script
 	set description "Executes Python code"
@@ -66,8 +190,8 @@ define inline_script experiment_script
 		myKeyboard = keyboard()
 		orientations = {"left" : (-256, 0), "right" : (256, 0)}
 		tones = ("bright", "dark")
-		redColours = {"bright" : (255, 0, 0), "dark" : (178.5, 0, 0)}
-		blueColours = {"bright" : (0, 0, 255), "dark" : (0, 0, 178.5)}
+		redColours = {"bright" : (255, 0, 0), "dark" : (var.red_intensity * 2.55, 0, 0)}
+		blueColours = {"bright" : (0, 0, 255), "dark" : (0, 0, var.blue_intensity * 2.55)}
 		defaultContrast = (0.75)
 		contrastParameter = (0.05)
 		responses = []
@@ -558,6 +682,133 @@ define inline_script experiment_script
 	__end__
 	set _prepare ""
 
+define sketchpad fixation_dot_1
+	set duration 2500
+	set description "Displays stimuli"
+	set background "#000000"
+	draw fixdot color=128 show_if=always style="small-cross" x=0 y=0 z_index=0
+
+define sketchpad fixation_dot_1_1
+	set duration 2500
+	set description "Displays stimuli"
+	draw fixdot color=128 show_if=always style="small-cross" x=0 y=0 z_index=0
+
+define inline_script init
+	set description "Executes Python code"
+	___run__
+	import os
+	from datamatrix import DataMatrix
+	
+	ydiff_list = []
+	sessiondm = DataMatrix()
+	sessionpath = os.path.join(var.pool_folder, 'pupildata-%d.pkl' % var.subject_nr)
+	plotpath = os.path.join(var.pool_folder, 'plot-%d' % var.subject_nr)
+	
+	if var.subject_parity == 'even':
+		var.color1 = 'red'
+		var.color2 = 'blue'
+	else:
+		var.color1 = 'blue'
+		var.color2 = 'red'
+		
+	pupil_responses = []
+	__end__
+	set _prepare ""
+
+define sketchpad instructions_check
+	set duration keypress
+	set description "Displays stimuli"
+	set background black
+	draw textline center=1 color=white font_bold=no font_family=mono font_italic=no font_size=20 html=yes show_if=always text="Look at the central fixation dot<br /><br />The experimenter will check whether your pupil is recorded<br /><br />Press any key to begin" x=0 y=0 z_index=0
+
+define sketchpad instructions_equiluminance
+	set duration keypress
+	set description "Displays stimuli"
+	set background "#000000"
+	draw textline center=1 color=white font_bold=no font_family=mono font_italic=no font_size=20 html=yes show_if=always text="<b>Equiluminance calibration</b><br /><br />Look at the central fixation dot<br /><br />You don't need to perform any task<br /><br />Press any key to begin" x=0 y=0 z_index=0
+
+define keyboard_response keyboard_response
+	set timeout infinite
+	set flush yes
+	set event_type keypress
+	set duration keypress
+	set description "Collects keyboard responses"
+	set allowed_responses q
+
+define logger logger
+	set description "Logs experimental data"
+	set auto_log no
+	log response
+	log blue_intensity
+	log ydiff
+	log ymax
+	log ymin
+	log color
+	log red_intensity
+	log step
+
+define sequence main
+	set flush_keyboard yes
+	set description "Runs a number of items in sequence"
+	run new_pygaze_start_recording always
+	run experiment_script always
+	run new_pygaze_log always
+	run new_pygaze_stop_recording always
+
+define inline_script new_inline_script
+	set description "Executes Python code"
+	___run__
+	from psychopy import visual
+	
+	myKeyboard = keyboard()
+	
+	mainBox = visual.Rect(
+		win, 
+		width= 1100, 
+		height = 400, 
+		pos = (0, 128), 
+		lineColor="navy", 
+		lineWidth = 3, 
+		fillColor = "lightblue"
+		)
+	
+	mainText1 = visual.TextStim(
+		win, 
+		text= "Hello and welcome! Before we run the experiment, we will proceed to perform a calibration in order to have the best setup for you.", 
+		color='black', 
+		pos=(0, 256), 
+		height=26, 
+		wrapWidth=1000
+		)
+		
+	mainText2 = visual.TextStim(
+		win, 
+		text= "For this calibration, you just need to keep your attention fixed on the cross on the middle of the screen, while blue and red circles will show up alternating one and the other. The eyetracker will register your pupil changes and will use this information for the main experiment later.", 
+		color='black', 
+		pos=(0, 128), 
+		height=26, 
+		wrapWidth=1000
+		)
+	
+	mainText3 = visual.TextStim(
+		win, 
+		text= "Please, check that you have completely filled in the consent form! Once you have, press any key to continue.", 
+		color='black', 
+		pos=(0, 0), 
+		height=26, 
+		wrapWidth=1000
+		)
+	
+	mainBox.draw()
+	mainText1.draw()
+	mainText2.draw()
+	mainText3.draw()
+	win.flip()
+	myKeyboard.get_key()
+	myKeyboard.flush()
+	__end__
+	set _prepare ""
+
 define pygaze_init new_pygaze_init
 	set tracker_type "Advanced dummy (mouse simulation)"
 	set tobiiglasses_udpport 49152
@@ -571,8 +822,14 @@ define pygaze_init new_pygaze_init
 	set eyelink_force_drift_correct yes
 	set description "Initialize and calibrate eye tracker"
 	set calibrate yes
-	set calbeep yes
+	set calbeep no
 	set _logfile automatic
+
+define pygaze_log new_pygaze_log
+	set throttle 2
+	set msg ""
+	set description "Writes information to the eye-tracker logfile"
+	set auto_log no
 
 define pygaze_start_recording new_pygaze_start_recording
 	set status_msg start_experiment
@@ -581,4 +838,143 @@ define pygaze_start_recording new_pygaze_start_recording
 define pygaze_stop_recording new_pygaze_stop_recording
 	set status_msg stop_experiment
 	set description "Stops recording of eye tracking data"
+
+define sequence new_sequence
+	set flush_keyboard yes
+	set description "Runs a number of items in sequence"
+	run pygaze_init always
+
+define sequence pupil_sequence
+	set flush_keyboard yes
+	set description "Runs a number of items in sequence"
+	run set_color always
+	run pygaze_drift_correct never
+	run pygaze_start_recording always
+	run fixation_dot_1 always
+	run start_phase always
+	run coroutines always
+	run end_phase always
+	run calibrate "[mode] = calibrate"
+	run record "[mode] = record"
+	run pygaze_log always
+	run pygaze_stop_recording always
+
+define pygaze_drift_correct pygaze_drift_correct
+	set ypos 0
+	set xpos 0
+	set target_style default
+	set target_color "[foreground]"
+	set fixation_triggered yes
+	set draw_target yes
+	set description "Perform eye-tracker drift correction"
+
+define pygaze_init pygaze_init
+	set tracker_type "Advanced dummy (mouse simulation)"
+	set tobiiglasses_udpport 49152
+	set tobiiglasses_address "192.168.71.50"
+	set smi_send_port 4444
+	set smi_recv_port 5555
+	set smi_ip "127.0.0.1"
+	set sacc_vel_thr 35
+	set sacc_acc_thr 9500
+	set eyelink_pupil_size_mode area
+	set eyelink_force_drift_correct yes
+	set description "Initialize and calibrate eye tracker"
+	set calibrate yes
+	set calbeep no
+	set _logfile automatic
+
+define pygaze_log pygaze_log
+	set throttle 2
+	set msg ""
+	set description "Writes information to the eye-tracker logfile"
+	set auto_log yes
+
+define pygaze_start_recording pygaze_start_recording
+	set status_msg "start_calibration_trial [count_pupil_sequence]"
+	set description "Puts the eye tracker into recording mode"
+
+define pygaze_stop_recording pygaze_stop_recording
+	set status_msg stop_calibration
+	set description "Stops recording of eye tracking data"
+
+define inline_script record
+	set description "Executes Python code"
+	___run__
+	from datamatrix import io, SeriesColumn
+	
+	trialdm = DataMatrix(length=1)
+	trialdm.color = var.color
+	trialdm.red_intensity = var.red_intensity
+	trialdm.blue_intensity = var.blue_intensity
+	trialdm.pupil = SeriesColumn(len(pupil_trace), defaultnan=True)
+	trialdm.pupil[0] = pupil_trace
+	trialdm.time = SeriesColumn(len(time_trace), defaultnan=True)
+	trialdm.time[0] = time_trace
+	sessiondm <<= trialdm
+	
+	if var.response != 'q':
+		io.writepickle(sessiondm, sessionpath)
+		if sessionpath not in exp.data_files:
+			exp.data_files.append(sessionpath)
+	__end__
+	set _prepare ""
+
+define feedback results
+	set reset_variables yes
+	set duration keypress
+	set description "Provides feedback to the participant"
+	draw textline center=1 color=white font_bold=no font_family=mono font_italic=no font_size=20 html=yes show_if=always text="Results<br /><br />The blue intensity was kept constant<br /><br />Red intensity: [red_intensity]%<br />Blue intensity: [blue_intensity]%<br /><br />Press any key to exit" x=-1 y=5 z_index=0
+
+define inline_script set_color
+	set description "Executes Python code"
+	set _run ""
+	___prepare__
+	if var.color == 'red':
+		var.rgb = 'rgb(%d%%,0%%,0%%)' % var.red_intensity
+	elif var.color == 'blue':
+		var.rgb = 'rgb(0%%, 0%%, %d%%)' % var.blue_intensity
+	else:
+		raise Exception('Invalid color')
+	__end__
+
+define form_base settings
+	set timeout infinite
+	set spacing 5
+	set rows "1;1;1;1;1;1;1;1;1;1"
+	set only_render no
+	set margins "10;10;10;10"
+	set description "A generic form plug-in"
+	set cols "2;2"
+	set background black
+	set _theme gray
+	widget 0 0 2 1 label text="Settings for equiluminance"
+	widget 0 2 1 1 label text="Trials per color"
+	widget 1 2 1 1 text_input text=20 var=repeat_equiluminance
+	widget 0 3 1 1 label text="Stim-on duration (ms)"
+	widget 1 3 1 1 text_input text=1000 var=stimon_equiluminance
+	widget 0 4 1 1 label text="Stim-off duration (ms)"
+	widget 1 4 1 1 text_input text=2000 var=stimoff_equiluminance
+	widget 0 5 1 1 label text="Red intensity (adjusted) (%)"
+	widget 1 5 1 1 text_input text=70 var=red_intensity
+	widget 0 6 1 1 label text="Blue intensity (fixed) (%)"
+	widget 1 6 1 1 text_input text=70 var=blue_intensity
+	widget 0 7 1 1 label text="Step size (%)"
+	widget 1 7 1 1 text_input text=1 var=step_size
+	widget 0 9 2 1 button text=Ok
+
+
+define inline_script start_phase
+	set description "Executes Python code"
+	___run__
+	eyetracker.log('start_phase stimulus')
+	__end__
+	set _prepare ""
+
+define sketchpad stimulus_on
+	set duration keypress
+	set description "Displays stimuli"
+	set background "#000000"
+	draw circle color="[rgb]" fill=1 penwidth=1 r=288 show_if=always x=0 y=0 z_index=0
+	draw fixdot color=128 show_if=always style="small-cross" x=0 y=0 z_index=0
 
