@@ -166,7 +166,7 @@ define loop equiluminance_loop
 define sequence experiment
 	set flush_keyboard yes
 	set description "Runs a number of items in sequence"
-	run new_inline_script always
+	run main_instructions always
 	run pygaze_init always
 	run calibration always
 	run main always
@@ -207,7 +207,7 @@ define inline_script experiment_script
 			experiment.lettersArray = {}
 			for letter in range(len(experiment.letters)):
 				experiment.letters[letter] = str(re.search('(.?).png', experiment.letters[letter]).group(1))
-				array = scipy.misc.imread(lettersPath + experiment.letters[letter] + ".png") * 0.00075
+				array = scipy.misc.imread(lettersPath + experiment.letters[letter] + ".png") * 0.001
 				experiment.lettersArray.update({experiment.letters[letter]:array[::-1]})
 			if not experiment.letters:
 				raise Exception("Failed to find letters! Add a directory named \"letters\" and add the letter files as \".png\" files!")
@@ -218,6 +218,13 @@ define inline_script experiment_script
 			random.shuffle(experiment.letters)
 			experiment.redWeights = experiment.letters[:len(experiment.letters)/2] 
 			return experiment.redWeights
+			
+		def blankScreen(self, duration):
+			'''Shows a blank screen with the fixation point for a specific duration (in seconds)'''
+			fixationPoint = visual.TextStim(win, text="+", height=20, pos=(0,2), color="black")
+			fixationPoint.draw()
+			win.flip()
+			core.wait(duration)
 		
 		def showInstructions(self):
 			'''Presents instructions to the user'''
@@ -232,7 +239,7 @@ define inline_script experiment_script
 				)
 			instructions1 = visual.TextStim(
 				win, 
-				text= "On this experiment, you will see a red and a blue circle on the screen and an arrow pointing at one of them. Every 100ms, a letter will be flashed inside both circles.", 
+				text= "Now we will proceed to the core of the experiment. On every trial you will first see a letter which you have to remember. After pressing a key, you will see a red and a blue circle on the screen, as well as an arrow in the center of the screen pointing at one of them. Every 250ms, a letter will be flashed inside both circles.", 
 				color='black', 
 				pos=(0, 256), 
 				height=26, 
@@ -240,7 +247,7 @@ define inline_script experiment_script
 				)
 			instructions2 = visual.TextStim(
 				win, 
-				text= "Your task simply consists on, first, looking at the center of the screen. There is a cross, in the middle of the arrow, where you should keep your sight on. While you keep staring at the cross, you will have to count how many times a certain letter, specified before every trial, appears in one of the circles.", 
+				text= "Your task simply consists on, first, staring at the center of the screen. There is a fixation point inside the arrow where you should keep your sight on. Meanwhile, without moving your sight away, you have to count how many times the letter that you saw before shows up on one of the circles.", 
 				color='black', 
 				pos=(0, 128), 
 				height=26, 
@@ -370,14 +377,16 @@ define inline_script experiment_script
 			newTrial = trial()
 			newTrial.setup(self)
 			newTrial.showTarget()
+			self.blankScreen(1)
 			startTime = 0
 			for loop in range(self.loops):
 				startTime = clock.time()
 				newTrial.presentStimulus(loop)
 				eyetracker.log("var pupil_size %f" % eyetracker.pupil_size())
-				core.wait(self.presentationTime * 0.001 * 0.6) # 60ms + 30 from processing the code
+				core.wait(self.presentationTime * 0.001 * 0.8) # The 0.8 parameter is an adjustement to be done to compensate the time it takes to run every iteration
 				#print(clock.time() - startTime)
-			newTrial.getAnswer(self)
+			self.blankScreen(0.5)
+			newTrial.checkAnswer(self)
 			newTrial.logTracker(self)
 			
 		def start(self):
@@ -409,14 +418,31 @@ define inline_script experiment_script
 			'''Sets the target and the letter pools'''
 			trial.target = random.choice(experiment.letters)
 			trial.nonTargets = []
-			trial.targetPool = []
-			trial.nonTargetPool = []
 			trial.red = []
 			trial.blue = []
 			trial.targetChance = random.uniform(0,1)
+			
+			self.generatePools()
+			while trial.targetPool.count(trial.target) <= 2 or trial.targetPool.count(trial.target) >= 9:
+				self.generatePools()
+			print(trial.targetPool.count(trial.target))
+			
+			if (trial.target in experiment.redWeights and trial.targetChance <= 0.8 ) or (trial.target not in experiment.redWeights and trial.targetChance > 0.8):
+				trial.red = trial.targetPool
+				trial.blue = trial.nonTargetPool
+			else:
+				trial.red = trial.nonTargetPool
+				trial.blue = trial.targetPool	
+			return(trial.target, trial.nonTargets, trial.red, trial.blue, trial.targetChance)
+			
+		def generatePools(self):
+			'''Generates the pools of letters for a single trial'''
+			trial.targetPool = []
+			trial.nonTargetPool = []
 			for letter in experiment.letters:
 				if letter != trial.target:
 					trial.nonTargets.append(letter)
+					
 			for loop in range(self.loops):
 				trial.targetPool.append(random.choice(experiment.letters))
 				trial.nonTargetPool.append(random.choice(trial.nonTargets))
@@ -424,13 +450,7 @@ define inline_script experiment_script
 					trial.targetPool[loop] = random.choice(experiment.letters)
 				while (trial.nonTargetPool[loop] == trial.nonTargetPool[loop - 1] and loop > 1) or trial.nonTargetPool[loop] == trial.targetPool[loop]:
 					trial.nonTargetPool[loop] = random.choice(trial.nonTargets)
-			if (trial.target in experiment.redWeights and trial.targetChance <= 0.8 ) or (trial.target not in experiment.redWeights and trial.targetChance > 0.8):
-				trial.red = trial.targetPool
-				trial.blue = trial.nonTargetPool
-			else:
-				trial.red = trial.nonTargetPool
-				trial.blue = trial.targetPool	
-			return(trial.target, trial.nonTargets, trial.targetPool, trial.nonTargetPool, trial.red, trial.blue, trial.targetChance)
+			return(trial.targetPool, trial.nonTargetPool)
 		
 		def setupStimuli(self, experiment):
 			'''Sets up the properties of the stimuli to be presented on the current trial'''
@@ -524,61 +544,32 @@ define inline_script experiment_script
 			win.flip()
 			self.myKeyboard.get_key()	
 			self.myKeyboard.flush()
-			
+				
 		def answerScreen(self):
 			'''Prompts screen asking for an answer'''
 			#print(trial.targetPool.count(trial.target))
 			trial.keysString = ""
 			self.myKeyboard.flush()
-			while True:
-				answerInstructionsText = visual.TextStim(
-					win, 
-					text = "How many times did you see letter %s ?" % trial.target, 
-					color = 'black', 
-					pos = (0, 128), 
-					height = 24, 
-					wrapWidth = 700 
-					)
-				answerText = visual.TextStim(
-					win, 
-					text = trial.keysString + "_", 
-					color='black', 
-					pos=(0, -128), 
-					height=18, 
-					wrapWidth=700
-					)
-				submitText = visual.TextStim(
-					win, 
-					text = "Press Enter to submit", 
-					color='black', 
-					pos=(0, -256), 
-					height=18, 
-					wrapWidth=700
-					)
-				answerInstructionsText.draw()
-				answerText.draw()
-				submitText.draw()
-				win.flip()
-				keys = self.myKeyboard.get_key()
-				if 'return' in keys:
-					break
-				elif 'backspace' in keys:
-					trial.keysString = trial.keysString[:-1]
-				elif len(keys[0]) > 1:
-					trial.keysString = trial.keysString + " "
-				else:
-					trial.keysString = trial.keysString + keys[0]
+			answerInstructionsText = visual.TextStim(
+				win, 
+				text = "How many times did you see letter %s ?" % trial.target, 
+				color = 'black', 
+				pos = (0, 128), 
+				height = 24, 
+				wrapWidth = 700 
+				)
+	
+			answerInstructionsText.draw()
+			win.flip()
+			trial.response = self.myKeyboard.get_key(keylist=['0','1','2','3','4','5','6','7','8','9'])
 			self.myKeyboard.flush()
-			return trial.keysString
+			return trial.response
 		
-		def getAnswer(self, experiment):
-			'''Retrieves the answer'''
+		def checkAnswer(self, experiment):
+			'''Checks the answer the answer'''
 			self.answerScreen()
 			trial.correct = False
-			try:
-				trial.answer = int(trial.keysString)
-			except:
-				trial.answer = None
+			trial.answer = int(trial.response[0])
 			if trial.answer == trial.targetPool.count(trial.target):
 				trial.correct = True	
 			self.setContrasts(experiment)	
@@ -602,7 +593,16 @@ define inline_script experiment_script
 					pos=(0, 128), 
 					height=64, 
 					wrapWidth=700)
+				
 				feedbackText2 = visual.TextStim(
+					win,
+					text = "Letter %s appeared %d times but you answered %d." % (trial.target, trial.targetPool.count(trial.target), trial.answer),
+					color= "black",
+					pos=(0, 0),
+					height= 24,
+					wrapWidth=700)
+					
+				feedbackText3 = visual.TextStim(
 					win, 
 					text = "Press Q to exit practice mode.", 
 					color="black", 
@@ -610,7 +610,7 @@ define inline_script experiment_script
 					height=18, 
 					wrapWidth=700
 					)
-				feedbackText3 = visual.TextStim(
+				feedbackText4 = visual.TextStim(
 					win, 
 					text = "Otherwise, press space to continue in practice mode.", 
 					color="black", 
@@ -619,8 +619,9 @@ define inline_script experiment_script
 					wrapWidth=700
 					)
 				feedbackText.draw()
-				feedbackText2.draw()
+				if trial.correct == False: feedbackText2.draw()
 				feedbackText3.draw()
+				feedbackText4.draw()
 				win.flip()
 				keys = self.myKeyboard.get_key()
 				if 'q' in keys:
@@ -755,7 +756,7 @@ define sequence main
 	run new_pygaze_log always
 	run new_pygaze_stop_recording always
 
-define inline_script new_inline_script
+define inline_script main_instructions
 	set description "Executes Python code"
 	___run__
 	from psychopy import visual
