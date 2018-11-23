@@ -1,6 +1,6 @@
 ---
 API: 2.1
-OpenSesame: 3.2.4
+OpenSesame: 3.2.5
 Platform: nt
 ---
 set width 1920
@@ -210,7 +210,7 @@ define inline_script experiment_script
 				array = scipy.misc.imread(lettersPath + experiment.letters[letter] + ".png") * 0.001
 				experiment.lettersArray.update({experiment.letters[letter]:array[::-1]})
 			if not experiment.letters:
-				raise Exception("Failed to find letters! Add a directory named \"letters\" and add the letter files as \".png\" files!")
+				raise Exception("Failed to find letters! Add a directory named \"letters\" and add the letter files as \".png\" files in it!")
 			return(experiment.letters, experiment.lettersArray)
 		
 		def getWeights(self):
@@ -421,11 +421,11 @@ define inline_script experiment_script
 			trial.red = []
 			trial.blue = []
 			trial.targetChance = random.uniform(0,1)
-			trial.targetAppearances = random.randint(3,7)
+			trial.targetAppearances = random.randint(2,8)
 			
-			self.generatePools()
-			while trial.targetPool.count(trial.target) != trial.targetAppearances:
-				self.generatePools()
+			self.setupPools()
+	#		while trial.targetPool.count(trial.target) != trial.targetAppearances:
+	#			self.setupPools()
 			
 			if (trial.target in experiment.redWeights and trial.targetChance <= 0.8 ) or (trial.target not in experiment.redWeights and trial.targetChance > 0.8):
 				trial.red = trial.targetPool
@@ -435,34 +435,64 @@ define inline_script experiment_script
 				trial.blue = trial.targetPool	
 			return(trial.target, trial.nonTargets, trial.red, trial.blue, trial.targetChance)
 			
-		def generatePools(self):
-			'''Generates the pools of letters for a single trial'''
-			trial.targetPool = []
-			trial.nonTargetPool = []
+		def setupPools(self):
+			'''Sets up the pools of letters for a single trial'''
+			random.seed()
+			trial.targetPool = experiment.letters
+			trial.nonTargets = []
 			for letter in experiment.letters:
 				if letter != trial.target:
-					trial.nonTargets.append(letter)
+					trial.nonTargets.append(letter)		
+			self.generatePools()
 					
-			for loop in range(self.loops):
-				trial.targetPool.append(random.choice(experiment.letters))
-				trial.nonTargetPool.append(random.choice(trial.nonTargets))
-				
-			while self.checkPool(trial.targetPool):
-				random.shuffle(trial.targetPool)
-				
-			while self.checkPool(trial.nonTargetPool):
-				random.shuffle(trial.nonTargetPool)
-				
-			return(trial.targetPool, trial.nonTargetPool)
+		def generatePools(self):
+			'''Generates the whole letter pools for a single trial'''
 			
-		def checkPool(self, letterpool):
-			''' Checks if a pool of letters has no consecutive items '''
-			prev = None
-			for item in letterpool:
-				if (item == prev) : return True
-				prev = item
-			return False
-		
+			reverse = len(experiment.letters) < len(trial.nonTargets)
+			high = experiment.letters if not reverse else trial.nonTargets
+			low  = experiment.letters if reverse else trial.nonTargets
+			numTargets = trial.targetAppearances
+		 
+			# initialize stuff and get ready
+			trial.targetPool = []
+			trial.nonTargetPool = []
+			candidates1 = low
+			candidates2 = low                                 # candidates that are NOT the odd character
+		 
+			chosen1 = '\0'
+			chance = random.randint(0,1) if numTargets>0 and chosen1 != trial.target else 0                 # find out if we're gonna add the odd character
+			numTargets = numTargets - 1 if chance else numTargets                         # if we added the odd character, decrease counter
+			chosen1 = trial.target if chance else random.choice(candidates1)         # character that we will add to first list
+			chosen2 = '\0'
+		 
+			# main loop
+			for i in range(self.loops):
+				trial.targetPool = trial.targetPool + [chosen1]                                   # add character to first list
+				candidates1 = filter(lambda x: x!=chosen1, low)                 # find the possible candidates for next iteration that do not include the chosen
+		 
+				candidates2 = filter(lambda x: x!=chosen1, candidates2)         # filter out the chosen character for the first list so it doesn't appear in the same position
+				chosen2 = random.choice(candidates2)                            # find the character to add to second list
+				trial.nonTargetPool = trial.nonTargetPool + [chosen2]                                   # add character to the other list that doesn't have odd character
+		   
+				chance = random.randint(0,1) if numTargets > 0 and chosen1 != trial.target else 0                 # find out if we're gonna add the odd character
+				numTargets = numTargets - 1 if chance else numTargets                         # if we added the odd character, decrease counter
+				chosen1 = trial.target if chance else random.choice(candidates1)
+				candidates2 = filter(lambda x: x!=chosen2 and x!=chosen1, low)                 # find the possible candidates for next iteration that do not include the chosen
+		   
+			if numTargets > 0:                                                      # bad luck!
+				options = filter(lambda x: trial.targetPool[x]!=trial.target, range(len(trial.targetPool)))
+				for _ in range(numTargets):
+					p = random.randint(0, len(options)-1)
+					trial.targetPool[options[p]] = trial.target                                 # replace with odd
+					options = options[:p] + options[p+1:]                       # exclude chosen index for further iterations
+		 
+			print(trial.targetPool, len(trial.targetPool))
+			print(trial.nonTargetPool, len(trial.nonTargetPool))
+			print(trial.target, trial.targetPool.count(trial.target), trial.targetAppearances)
+			
+			return (trial.targetPool, trial.nonTargetPool) if not reverse else (trial.nonTargetPool, trial.nonTargetPool)    # revert order back to original
+					
+	
 		def setupStimuli(self, experiment):
 			'''Sets up the properties of the stimuli to be presented on the current trial'''
 			trial.redTone = random.choice(self.tones)
@@ -471,8 +501,7 @@ define inline_script experiment_script
 			trial.blueContrast = experiment.brightBlueContrast if trial.blueTone == "bright" else experiment.darkBlueContrast	
 			trial.posRed = random.choice(("left", "right"))
 			trial.posBlue = next(pos for pos in ("left", "right") if pos not in trial.posRed)
-			#trial.posBlue = next(iter(set(("left", "right")) - set (trial.posRed)))	
-			#print("Red is the target:", trial.red == trial.targetPool, "Chance:", trial.targetChance, "Red position:", trial.posRed, "Arrow:", trial.arrowOrientation)
+	
 			return(trial.posRed, trial.posBlue, trial.redTone, trial.blueTone, trial.redContrast, trial.blueContrast)
 			
 		def setupArrow(self):
