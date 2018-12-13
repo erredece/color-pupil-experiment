@@ -202,7 +202,7 @@ define inline_script experiment_script
 		
 		def getLetters(self):
 			'''Gets letters from the "letters" folder and generates an array from them'''
-			lettersPath = exp.experiment_path + "\letters/"
+			lettersPath = os.path.join(exp.experiment_path, "letters", "")
 			experiment.letters = os.listdir(lettersPath)
 			experiment.lettersArray = {}
 			for letter in range(len(experiment.letters)):
@@ -247,7 +247,7 @@ define inline_script experiment_script
 				)
 			instructions2 = visual.TextStim(
 				win, 
-				text= "Your task simply consists on, first, staring at the center of the screen. There is a fixation point inside the arrow where you should keep your sight on. Meanwhile, without moving your sight away, you have to count how many times the letter that you saw before shows up on one of the circles.", 
+				text= "Your task simply consists of, first, staring at the center of the screen. There is a fixation point inside the arrow where you should keep your sight on. Meanwhile, without moving your sight away, you have to count how many times the letter that you saw before shows up on one of the circles.", 
 				color='black', 
 				pos=(0, 128), 
 				height=26, 
@@ -382,10 +382,13 @@ define inline_script experiment_script
 			for loop in range(self.loops):
 				#startTime = clock.time()
 				newTrial.presentStimulus(loop)
-				eyetracker.log("var pupil_size %f" % eyetracker.pupil_size())
+				#eyetracker.log("var pupil_size %f" % eyetracker.pupil_size())
+				#print("Eye position: {0}".format(eyetracker.sample()))
 				core.wait(self.presentationTime * 0.001 * 0.8) # The 0.8 parameter is an adjustement to be done to compensate the time it takes to run every iteration
 				#print(clock.time() - startTime)
+				newTrial.gazeList.append(eyetracker.sample()[0])
 			self.blankScreen(0.5)
+			newTrial.checkGaze()
 			newTrial.checkAnswer(self)
 			newTrial.logTracker(self)
 			
@@ -409,6 +412,7 @@ define inline_script experiment_script
 	class trial(experiment):
 		def setup(self, experiment):
 			'''General trial set up'''
+			trial.gazeList = []
 			self.setTarget()
 			self.setupStimuli(experiment)
 			self.setupArrow()
@@ -421,11 +425,8 @@ define inline_script experiment_script
 			trial.red = []
 			trial.blue = []
 			trial.targetChance = random.uniform(0,1)
-			trial.targetAppearances = random.randint(2,8)
-			
+			trial.targetAppearances = random.randint(2,5)
 			self.setupPools()
-	#		while trial.targetPool.count(trial.target) != trial.targetAppearances:
-	#			self.setupPools()
 			
 			if (trial.target in experiment.redWeights and trial.targetChance <= 0.8 ) or (trial.target not in experiment.redWeights and trial.targetChance > 0.8):
 				trial.red = trial.targetPool
@@ -486,10 +487,6 @@ define inline_script experiment_script
 					trial.targetPool[options[p]] = trial.target                                 # replace with odd
 					options = options[:p] + options[p+1:]                       # exclude chosen index for further iterations
 		 
-			print(trial.targetPool, len(trial.targetPool))
-			print(trial.nonTargetPool, len(trial.nonTargetPool))
-			print(trial.target, trial.targetPool.count(trial.target), trial.targetAppearances)
-			
 			return (trial.targetPool, trial.nonTargetPool) if not reverse else (trial.nonTargetPool, trial.nonTargetPool)    # revert order back to original
 					
 	
@@ -568,6 +565,7 @@ define inline_script experiment_script
 			arrow.draw()
 			fixation.draw()
 			win.flip()	
+	
 		
 		def showTarget(self):
 			'''Shows the target to the user'''
@@ -584,7 +582,15 @@ define inline_script experiment_script
 			win.flip()
 			self.myKeyboard.get_key()	
 			self.myKeyboard.flush()
-				
+			
+		def checkGaze(self):
+			'''Checks if the subject has moved their sight away from the cross into one of the targets'''
+			trial.looked = trial.lookedLeft = trial.lookedRight = False
+			for gaze in range(len(trial.gazeList) - 1):
+				if trial.gazeList[gaze] < 820: trial.lookedLeft = trial.looked = True # These values must be adjusted based on the screen resolution!!
+				if trial.gazeList[gaze] > 1100: trial.lookedRight = trial.looked = True
+			return(trial.looked, trial.lookedLeft, trial.lookedRight)
+			
 		def answerScreen(self):
 			'''Prompts screen asking for an answer'''
 			#print(trial.targetPool.count(trial.target))
@@ -606,7 +612,7 @@ define inline_script experiment_script
 			return trial.response
 		
 		def checkAnswer(self, experiment):
-			'''Checks the answer the answer'''
+			'''Checks if the answer introduced was correct or not'''
 			self.answerScreen()
 			trial.correct = False
 			trial.answer = int(trial.response[0])
@@ -623,14 +629,24 @@ define inline_script experiment_script
 		def practiceMode(self, experiment):
 			'''Gives feedback if practice mode is on'''
 			correctText = ("FALSE", "red")
+			textGazed = ""
 			if trial.correct == True:
 				correctText = ("CORRECT", "limegreen")
+				
+			if trial.looked:
+				if trial.lookedLeft:
+					if trial.lookedRight:
+						textGazed = "away from "
+					else:
+						textGazed = "to the left of "
+				else:
+					textGazed = "to the right of "
 			while True:
 				feedbackText = visual.TextStim(
 					win,
 					text = correctText[0], 
 					color=correctText[1], 
-					pos=(0, 128), 
+					pos=(0, 152), 
 					height=64, 
 					wrapWidth=700)
 				
@@ -638,7 +654,7 @@ define inline_script experiment_script
 					win,
 					text = "Letter %s appeared %d times but you answered %d." % (trial.target, trial.targetPool.count(trial.target), trial.answer),
 					color= "black",
-					pos=(0, 0),
+					pos=(0, 48),
 					height= 24,
 					wrapWidth=700)
 					
@@ -646,7 +662,7 @@ define inline_script experiment_script
 					win, 
 					text = "Press Q to exit practice mode.", 
 					color="black", 
-					pos=(0, -224), 
+					pos=(0, -248), 
 					height=18, 
 					wrapWidth=700
 					)
@@ -654,14 +670,34 @@ define inline_script experiment_script
 					win, 
 					text = "Otherwise, press space to continue in practice mode.", 
 					color="black", 
-					pos=(0, -256), 
+					pos=(0, -270), 
 					height=18, 
 					wrapWidth=700
 					)
+				feedbackTextGaze1 = visual.TextStim(
+					win,
+					text = "Moreover!" if trial.correct == False else "However!",
+					color= "red",
+					pos = (0, -56),
+					height = 32,
+					wrapWidth = 700
+					)
+					
+				feedbackTextGaze2 = visual.TextStim(
+					win,
+					text = "You looked " + textGazed + "the fixation cross!",
+					color = "black",
+					pos = (0, -128),
+					height = 24,
+					wrapWidth = 700
+					)
 				feedbackText.draw()
 				if trial.correct == False: feedbackText2.draw()
+				if trial.looked: feedbackTextGaze1.draw()
+				if trial.looked: feedbackTextGaze2.draw()
 				feedbackText3.draw()
 				feedbackText4.draw()
+	
 				win.flip()
 				keys = self.myKeyboard.get_key()
 				if 'q' in keys:
@@ -713,6 +749,9 @@ define inline_script experiment_script
 			eyetracker.log("var pos_blue %s" % trial.posBlue)
 			eyetracker.log("var arrow_orientation %s" % trial.arrowOrientation)
 			eyetracker.log("var arrow_correct %s" % trial.arrowCorrect)
+			eyetracker.log("var gazed %s" % trial.looked)
+			eyetracker.log("var gazed_left %s" % trial.lookedLeft)
+			eyetracker.log("var gazed_right %s" % trial.lookedRight)
 			eyetracker.log("var bright_red_contrast %s" % experiment.brightRedContrast)
 			eyetracker.log("var dark_red_contrast %s" % experiment.darkRedContrast)
 			eyetracker.log("var bright_blue_contrast %s" % experiment.brightBlueContrast)
