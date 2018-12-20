@@ -28,7 +28,7 @@ set font_size 18
 set font_italic no
 set font_family mono
 set font_bold no
-set experiment_path "D:\\GitHub\\color-pupil-experiment"
+set experiment_path "C:\\Users\\KMSuser\\Desktop\\color-pupil-experiment-master"
 set disable_garbage_collection yes
 set description "The main experiment item"
 set coordinates uniform
@@ -188,11 +188,11 @@ define inline_script experiment_script
 		loops = (28)
 		totalTrials = (5)
 		myKeyboard = keyboard()
-		orientations = {"left" : (-256, 0), "right" : (256, 0)}
+		orientations = {"left" : (-350, 0), "right" : (350, 0)}
 		tones = ("bright", "dark")
 		redColours = {"bright" : (255, 0, 0), "dark" : (var.red_intensity * 2.55, 0, 0)}
 		blueColours = {"bright" : (0, 0, 255), "dark" : (0, 0, var.blue_intensity * 2.55)}
-		defaultContrast = (0.75)
+		defaultContrast = (0.70)
 		contrastParameter = (0.05)
 		responses = []
 	
@@ -572,7 +572,7 @@ define inline_script experiment_script
 			targetText = visual.TextStim(
 				win, 
 				text = trial.target, 
-				color='forestgreen', 
+				color='limegreen', 
 				pos=(0, 128), 
 				height=256, 
 				wrapWidth=700
@@ -586,9 +586,12 @@ define inline_script experiment_script
 		def checkGaze(self):
 			'''Checks if the subject has moved their sight away from the cross into one of the targets'''
 			trial.looked = trial.lookedLeft = trial.lookedRight = False
-			for gaze in range(len(trial.gazeList) - 1):
-				if trial.gazeList[gaze] < 820: trial.lookedLeft = trial.looked = True # These values must be adjusted based on the screen resolution!!
-				if trial.gazeList[gaze] > 1100: trial.lookedRight = trial.looked = True
+			for gaze in trial.gazeList:
+				if gaze < 720: trial.lookedLeft += 1 # These values must be adjusted based on the screen resolution!!
+				if gaze > 1200: trial.lookedRight += 1
+			if trial.lookedLeft > 5 or trial.lookedRight > 5:
+				trial.looked = True
+			print(trial.lookedRight, trial.looked)
 			return(trial.looked, trial.lookedLeft, trial.lookedRight)
 			
 		def answerScreen(self):
@@ -634,12 +637,12 @@ define inline_script experiment_script
 				correctText = ("CORRECT", "limegreen")
 				
 			if trial.looked:
-				if trial.lookedLeft:
-					if trial.lookedRight:
+				if trial.lookedLeft > 5:
+					if trial.lookedRight > 5:
 						textGazed = "away from "
 					else:
 						textGazed = "to the left of "
-				else:
+				elif trial.lookedRight > 5:
 					textGazed = "to the right of "
 			while True:
 				feedbackText = visual.TextStim(
