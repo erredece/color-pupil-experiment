@@ -1,6 +1,6 @@
 ---
 API: 2.1
-OpenSesame: 3.2.5
+OpenSesame: 3.2.6
 Platform: nt
 ---
 set width 1920
@@ -185,15 +185,15 @@ define inline_script experiment_script
 	
 	class settings(object):
 		presentationTime = (250) # In milliseconds
-		loops = (28)
-		totalTrials = (5)
+		loops = 28
+		totalTrials = (20)
 		myKeyboard = keyboard()
 		orientations = {"left" : (-350, 0), "right" : (350, 0)}
 		tones = ("bright", "dark")
 		redColours = {"bright" : (255, 0, 0), "dark" : (var.red_intensity * 2.55, 0, 0)}
 		blueColours = {"bright" : (0, 0, 255), "dark" : (0, 0, var.blue_intensity * 2.55)}
-		defaultContrast = (0.70)
-		contrastParameter = (0.05)
+		defaultContrast = (0.8)
+		contrastParameter = (0.025)
 		responses = []
 	
 	class experiment(settings):	
@@ -211,13 +211,11 @@ define inline_script experiment_script
 				experiment.lettersArray.update({experiment.letters[letter]:array[::-1]})
 			if not experiment.letters:
 				raise Exception("Failed to find letters! Add a directory named \"letters\" and add the letter files as \".png\" files in it!")
-			return(experiment.letters, experiment.lettersArray)
 		
 		def getWeights(self):
 			'''Sets weights for which a letter will appear on the red or the blue stimuli'''
 			random.shuffle(experiment.letters)
 			experiment.redWeights = experiment.letters[:len(experiment.letters)/2] 
-			return experiment.redWeights
 			
 		def blankScreen(self, duration):
 			'''Shows a blank screen with the fixation point for a specific duration (in seconds)'''
@@ -278,7 +276,6 @@ define inline_script experiment_script
 			win.flip()
 			self.myKeyboard.get_key()
 			self.myKeyboard.flush()
-			return experiment.pressKeyText
 			
 		def practiceExited(self):
 			'''Lets the subject know that has exited practice mode and the real experiment begins now'''
@@ -354,13 +351,11 @@ define inline_script experiment_script
 			self.myKeyboard.get_key()
 			self.myKeyboard.flush()
 			eyetracker.log("var accuracy %s" % experiment.finalScore)
-			return experiment.finalScore
 			
 		def resetContrasts(self):
 			'''Resets contrasts to the default value at the start of the experiment'''
 			experiment.brightRedContrast = 	experiment.darkRedContrast = experiment.brightBlueContrast = experiment.darkBlueContrast = self.defaultContrast
-			return(experiment.brightRedContrast, experiment.darkRedContrast, experiment.brightBlueContrast, experiment.darkBlueContrast)
-		
+			
 		def logSettings(self):
 			'''Logs settings to the EDF'''
 			eyetracker.log("var list_letters %s" % " ".join(sorted(self.letters)))
@@ -382,7 +377,7 @@ define inline_script experiment_script
 			for loop in range(self.loops):
 				#startTime = clock.time()
 				newTrial.presentStimulus(loop)
-				#eyetracker.log("var pupil_size %f" % eyetracker.pupil_size())
+				eyetracker.log("var pupil_size %f" % eyetracker.pupil_size())
 				#print("Eye position: {0}".format(eyetracker.sample()))
 				core.wait(self.presentationTime * 0.001 * 0.8) # The 0.8 parameter is an adjustement to be done to compensate the time it takes to run every iteration
 				#print(clock.time() - startTime)
@@ -434,62 +429,50 @@ define inline_script experiment_script
 			else:
 				trial.red = trial.nonTargetPool
 				trial.blue = trial.targetPool	
-			return(trial.target, trial.nonTargets, trial.red, trial.blue, trial.targetChance)
 			
 		def setupPools(self):
 			'''Sets up the pools of letters for a single trial'''
-			random.seed()
-			trial.targetPool = experiment.letters
+			trial.targetPool = []
 			trial.nonTargets = []
+			trial.nonTargetPool = []
+			
+			# Generating pool without target
 			for letter in experiment.letters:
 				if letter != trial.target:
-					trial.nonTargets.append(letter)		
-			self.generatePools()
+					trial.nonTargets.append(letter)	
 					
-		def generatePools(self):
-			'''Generates the whole letter pools for a single trial'''
+			trial.nonTargetPool = trial.nonTargets[:] * (self.loops / len(trial.nonTargets)) # Iterating the list for the number of times the list fits in the total number of loops
 			
-			reverse = len(experiment.letters) < len(trial.nonTargets)
-			high = experiment.letters if not reverse else trial.nonTargets
-			low  = experiment.letters if reverse else trial.nonTargets
-			numTargets = trial.targetAppearances
-		 
-			# initialize stuff and get ready
-			trial.targetPool = []
-			trial.nonTargetPool = []
-			candidates1 = low
-			candidates2 = low                                 # candidates that are NOT the odd character
-		 
-			chosen1 = '\0'
-			chance = random.randint(0,1) if numTargets>0 and chosen1 != trial.target else 0                 # find out if we're gonna add the odd character
-			numTargets = numTargets - 1 if chance else numTargets                         # if we added the odd character, decrease counter
-			chosen1 = trial.target if chance else random.choice(candidates1)         # character that we will add to first list
-			chosen2 = '\0'
-		 
-			# main loop
-			for i in range(self.loops):
-				trial.targetPool = trial.targetPool + [chosen1]                                   # add character to first list
-				candidates1 = filter(lambda x: x!=chosen1, low)                 # find the possible candidates for next iteration that do not include the chosen
-		 
-				candidates2 = filter(lambda x: x!=chosen1, candidates2)         # filter out the chosen character for the first list so it doesn't appear in the same position
-				chosen2 = random.choice(candidates2)                            # find the character to add to second list
-				trial.nonTargetPool = trial.nonTargetPool + [chosen2]                                   # add character to the other list that doesn't have odd character
-		   
-				chance = random.randint(0,1) if numTargets > 0 and chosen1 != trial.target else 0                 # find out if we're gonna add the odd character
-				numTargets = numTargets - 1 if chance else numTargets                         # if we added the odd character, decrease counter
-				chosen1 = trial.target if chance else random.choice(candidates1)
-				candidates2 = filter(lambda x: x!=chosen2 and x!=chosen1, low)                 # find the possible candidates for next iteration that do not include the chosen
-		   
-			if numTargets > 0:                                                      # bad luck!
-				options = filter(lambda x: trial.targetPool[x]!=trial.target, range(len(trial.targetPool)))
-				for _ in range(numTargets):
-					p = random.randint(0, len(options)-1)
-					trial.targetPool[options[p]] = trial.target                                 # replace with odd
-					options = options[:p] + options[p+1:]                       # exclude chosen index for further iterations
-		 
-			return (trial.targetPool, trial.nonTargetPool) if not reverse else (trial.nonTargetPool, trial.nonTargetPool)    # revert order back to original
-					
-	
+			for remainder in range(self.loops - len(trial.nonTargetPool)): # Adding the remainder of letters.
+				trial.nonTargetPool.append(trial.nonTargets[remainder])	
+			
+			# Generatng pool with target
+			trial.targetCount = random.randint(2,5) # Number of times the target will show up
+			for letter in range(trial.targetCount): # Appending the target that amount of times
+				trial.targetPool.append(trial.target)
+			for letters in range(self.loops - len(trial.targetPool)): # Appending a random non target letter until we fill the list.
+				trial.targetPool.append(random.choice(trial.nonTargets))	
+				
+			self.checkPool(trial.targetPool)
+			self.checkPool(trial.nonTargetPool)
+						
+		def checkPool(self, letterpool):
+			'''Checks a pool of letters if one of the letters is the same as one of the two previous letters.
+			It will shuffle the pool until it generates a configuration where letters are spread out enough.'''
+			
+			checkpool = True
+			occurrences = 0
+			while checkpool:
+				random.shuffle(letterpool) # We allways shuffle first to ensure each pool presented is unique.
+				occurrences = 0
+				for letter in range(len(letterpool)):
+					if letter >= 1: # So it doesn't check on the last two letters of the pool. Remember index begins in 0
+						if letterpool[letter] in [letterpool[letter - 1], letterpool[letter - 2]]:
+							occurrences += 1
+				
+				if occurrences == 0:
+					checkpool = False
+			
 		def setupStimuli(self, experiment):
 			'''Sets up the properties of the stimuli to be presented on the current trial'''
 			trial.redTone = random.choice(self.tones)
@@ -497,10 +480,8 @@ define inline_script experiment_script
 			trial.redContrast = experiment.brightRedContrast if trial.redTone == "bright" else experiment.darkRedContrast
 			trial.blueContrast = experiment.brightBlueContrast if trial.blueTone == "bright" else experiment.darkBlueContrast	
 			trial.posRed = random.choice(("left", "right"))
-			trial.posBlue = next(pos for pos in ("left", "right") if pos not in trial.posRed)
-	
-			return(trial.posRed, trial.posBlue, trial.redTone, trial.blueTone, trial.redContrast, trial.blueContrast)
-			
+			trial.posBlue = next(pos for pos in ("left", "right") if pos not in trial.posRed) # Get the other position
+		
 		def setupArrow(self):
 			'''Sets up where will the arrow point'''
 			trial.arrowChance = random.uniform(0,1)
@@ -519,7 +500,6 @@ define inline_script experiment_script
 				trial.arrowCorrect = True
 			else:
 				trial.arrowCorrect = False		
-			return( trial.arrowOrientation, trial.arrowCorrect)
 		
 		def presentStimulus(self, loopcounter):
 			'''Presents a single set of stimuli'''
@@ -565,7 +545,6 @@ define inline_script experiment_script
 			arrow.draw()
 			fixation.draw()
 			win.flip()	
-	
 		
 		def showTarget(self):
 			'''Shows the target to the user'''
@@ -591,12 +570,9 @@ define inline_script experiment_script
 				if gaze > 1200: trial.lookedRight += 1
 			if trial.lookedLeft > 5 or trial.lookedRight > 5:
 				trial.looked = True
-			print(trial.lookedRight, trial.looked)
-			return(trial.looked, trial.lookedLeft, trial.lookedRight)
 			
 		def answerScreen(self):
 			'''Prompts screen asking for an answer'''
-			#print(trial.targetPool.count(trial.target))
 			trial.keysString = ""
 			self.myKeyboard.flush()
 			answerInstructionsText = visual.TextStim(
@@ -612,14 +588,13 @@ define inline_script experiment_script
 			win.flip()
 			trial.response = self.myKeyboard.get_key(keylist=['0','1','2','3','4','5','6','7','8','9'])
 			self.myKeyboard.flush()
-			return trial.response
 		
 		def checkAnswer(self, experiment):
 			'''Checks if the answer introduced was correct or not'''
 			self.answerScreen()
 			trial.correct = False
 			trial.answer = int(trial.response[0])
-			if trial.answer == trial.targetPool.count(trial.target):
+			if trial.answer == trial.targetCount:
 				trial.correct = True	
 			self.setContrasts(experiment)	
 			if experiment.practice == True:
@@ -627,7 +602,6 @@ define inline_script experiment_script
 				self.myKeyboard.flush()	
 			else:
 				experiment.responses.append(trial.correct)
-			return(trial.answer, trial.correct)
 			
 		def practiceMode(self, experiment):
 			'''Gives feedback if practice mode is on'''
@@ -709,7 +683,6 @@ define inline_script experiment_script
 				elif 'space' in keys:
 					break
 				self.myKeyboard.flush()
-			return experiment.practice
 		
 		def setContrasts(self, experiment):
 			'''Increases or decreases stimuli contrast based on the response being correct or not'''
@@ -733,9 +706,7 @@ define inline_script experiment_script
 					experiment.darkBlueContrast -= experiment.contrastParameter
 				else:
 					experiment.darkBlueContrast += experiment.contrastParameter
-	
-			return(experiment.brightRedContrast, experiment.darkRedContrast, experiment.brightBlueContrast, experiment.darkBlueContrast)
-			
+		
 		def logTracker(self, experiment):
 			'''Logs variables to the EDF'''
 			eyetracker.log("var practicemode %s" % str(experiment.practice))
