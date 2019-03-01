@@ -192,8 +192,8 @@ define inline_script experiment_script
 		tones = ("bright", "dark")
 		redColours = {"bright" : (255, 0, 0), "dark" : (var.red_intensity * 2.55, 0, 0)}
 		blueColours = {"bright" : (0, 0, 255), "dark" : (0, 0, var.blue_intensity * 2.55)}
-		defaultContrast = (0.8)
-		contrastParameter = (0.025)
+		defaultContrast = (0.85)
+		contrastParameter = (0.01)
 		responses = []
 	
 	class experiment(settings):	
@@ -459,7 +459,7 @@ define inline_script experiment_script
 		def checkPool(self, letterpool):
 			'''Checks a pool of letters if one of the letters is the same as one of the two previous letters.
 			It will shuffle the pool until it generates a configuration where letters are spread out enough.'''
-			
+					
 			checkpool = True
 			occurrences = 0
 			while checkpool:
@@ -686,22 +686,22 @@ define inline_script experiment_script
 		
 		def setContrasts(self, experiment):
 			'''Increases or decreases stimuli contrast based on the response being correct or not'''
-			if 0.05 <= experiment.brightRedContrast <= 0.95 and trial.redTone == "bright":
+			if 0.01 <= experiment.brightRedContrast <= 0.99 and trial.redTone == "bright":
 				if trial.correct == True:
 					experiment.brightRedContrast -= experiment.contrastParameter
 				else:
 					experiment.brightRedContrast += experiment.contrastParameter
-			if 0.05 <= experiment.darkRedContrast <= 0.95 and trial.redTone == "dark":
+			if 0.01 <= experiment.darkRedContrast <= 0.99 and trial.redTone == "dark":
 				if trial.correct == True:
 					experiment.darkRedContrast -= experiment.contrastParameter
 				else:
 					experiment.darkRedContrast += experiment.contrastParameter
-			if 0.05 <= experiment.brightBlueContrast <= 0.95 and trial.blueTone == "bright":
+			if 0.01 <= experiment.brightBlueContrast <= 0.99 and trial.blueTone == "bright":
 				if trial.correct == True:
 					experiment.brightBlueContrast -= experiment.contrastParameter
 				else:
 					experiment.brightBlueContrast += experiment.contrastParameter
-			if 0.05 <= experiment.darkBlueContrast <= 0.95 and trial.blueTone == "dark":
+			if 0.01 <= experiment.darkBlueContrast <= 0.99 and trial.blueTone == "dark":
 				if trial.correct == True:
 					experiment.darkBlueContrast -= experiment.contrastParameter
 				else:
@@ -923,7 +923,7 @@ define pygaze_drift_correct pygaze_drift_correct
 	set description "Perform eye-tracker drift correction"
 
 define pygaze_init pygaze_init
-	set tracker_type "Advanced dummy (mouse simulation)"
+	set tracker_type EyeLink
 	set tobiiglasses_udpport 49152
 	set tobiiglasses_address "192.168.71.50"
 	set smi_send_port 4444
