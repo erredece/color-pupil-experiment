@@ -15,7 +15,8 @@ set sound_channels 2
 set sound_buf_size 1024
 set sampler_backend legacy
 set round_decimals 2
-set psychopy_screen 0
+set psychopy_suppress_warnings yes
+set psychopy_screen 1
 set psychopy_monitor testMonitor
 set mouse_backend psycho
 set keyboard_backend psycho
@@ -28,7 +29,7 @@ set font_size 18
 set font_italic no
 set font_family mono
 set font_bold no
-set experiment_path "C:\\Users\\KMSuser\\Desktop\\color-pupil-experiment-master"
+set experiment_path "D:\\GitHub\\color-pupil-experiment"
 set disable_garbage_collection yes
 set description "The main experiment item"
 set coordinates uniform
@@ -432,7 +433,6 @@ define inline_script experiment_script
 			
 		def setupPools(self):
 			'''Sets up the pools of letters for a single trial'''
-			trial.targetPool = []
 			trial.nonTargets = []
 			trial.nonTargetPool = []
 			
@@ -446,15 +446,27 @@ define inline_script experiment_script
 			for remainder in range(self.loops - len(trial.nonTargetPool)): # Adding the remainder of letters.
 				trial.nonTargetPool.append(trial.nonTargets[remainder])	
 			
-			# Generatng pool with target
+			# Generating pool with target
 			trial.targetCount = random.randint(2,5) # Number of times the target will show up
+			self.generateTargetPool()
+			
+			#In case of bad RNG, we reset the pool so it doesn't freeze the experiment
+			for letter in trial.targetPool:
+				if letter != trial.target:
+					if trial.targetPool.count(letter) > 3:
+						print("Generating again because {0} appeared {1} times".format(letter, trial.targetPool.count(letter)))
+						self.generateTargetPool()
+				
+			self.checkPool(trial.targetPool)
+			self.checkPool(trial.nonTargetPool)
+			
+		def generateTargetPool(self):
+			'''Generates the pool of letters with the target'''
+			trial.targetPool = []
 			for letter in range(trial.targetCount): # Appending the target that amount of times
 				trial.targetPool.append(trial.target)
 			for letters in range(self.loops - len(trial.targetPool)): # Appending a random non target letter until we fill the list.
 				trial.targetPool.append(random.choice(trial.nonTargets))	
-				
-			self.checkPool(trial.targetPool)
-			self.checkPool(trial.nonTargetPool)
 						
 		def checkPool(self, letterpool):
 			'''Checks a pool of letters if one of the letters is the same as one of the two previous letters.
@@ -462,8 +474,9 @@ define inline_script experiment_script
 					
 			checkpool = True
 			occurrences = 0
+			checkcounter = 0
 			while checkpool:
-				random.shuffle(letterpool) # We allways shuffle first to ensure each pool presented is unique.
+				random.shuffle(letterpool) # We always shuffle first to ensure each pool presented is unique.
 				occurrences = 0
 				for letter in range(len(letterpool)):
 					if letter >= 1: # So it doesn't check on the last two letters of the pool. Remember index begins in 0
@@ -472,6 +485,10 @@ define inline_script experiment_script
 				
 				if occurrences == 0:
 					checkpool = False
+				else:
+					checkcounter += 1
+				if checkcounter % 100 == 0:
+					print("Shuffled {0} times".format(checkcounter))
 			
 		def setupStimuli(self, experiment):
 			'''Sets up the properties of the stimuli to be presented on the current trial'''
@@ -923,7 +940,7 @@ define pygaze_drift_correct pygaze_drift_correct
 	set description "Perform eye-tracker drift correction"
 
 define pygaze_init pygaze_init
-	set tracker_type EyeLink
+	set tracker_type "Advanced dummy (mouse simulation)"
 	set tobiiglasses_udpport 49152
 	set tobiiglasses_address "192.168.71.50"
 	set smi_send_port 4444
