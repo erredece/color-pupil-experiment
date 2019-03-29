@@ -29,7 +29,7 @@ set font_size 18
 set font_italic no
 set font_family mono
 set font_bold no
-set experiment_path "D:\\GitHub\\color-pupil-experiment"
+set experiment_path "C:\\Users\\KMSuser\\Desktop\\color-pupil-experiment-master"
 set disable_garbage_collection yes
 set description "The main experiment item"
 set coordinates uniform
@@ -187,7 +187,7 @@ define inline_script experiment_script
 	class settings(object):
 		presentationTime = (250) # In milliseconds
 		loops = 28
-		totalTrials = (20)
+		totalTrials = (180)
 		myKeyboard = keyboard()
 		orientations = {"left" : (-350, 0), "right" : (350, 0)}
 		tones = ("bright", "dark")
@@ -417,11 +417,9 @@ define inline_script experiment_script
 		def setTarget(self):
 			'''Sets the target and the letter pools'''
 			trial.target = random.choice(experiment.letters)
-			trial.nonTargets = []
 			trial.red = []
 			trial.blue = []
 			trial.targetChance = random.uniform(0,1)
-			trial.targetAppearances = random.randint(2,5)
 			self.setupPools()
 			
 			if (trial.target in experiment.redWeights and trial.targetChance <= 0.8 ) or (trial.target not in experiment.redWeights and trial.targetChance > 0.8):
@@ -489,6 +487,18 @@ define inline_script experiment_script
 					checkcounter += 1
 				if checkcounter % 100 == 0:
 					print("Shuffled {0} times".format(checkcounter))
+				
+				# In case of very bad luck we may have an infinite loop, so we just reset the pool.
+				if checkcounter > 10000:
+					if trial.target not in letterpool:
+						trial.nonTargetPool = trial.nonTargets[:] * (self.loops / len(trial.nonTargets)) + trial.nonTargetPool.append(trial.nonTargets[random.randint(0,len(trial.nonTargets) - 2)])
+						checkpool = False
+						print("Resetted non target pools to avoid an infinite loop")
+					else:
+						print("Resetted target pool to avoid an infinite loop")
+						checkpool = False
+						self.generateTargetPool()
+						self.checkPool(trial.targetPool)
 			
 		def setupStimuli(self, experiment):
 			'''Sets up the properties of the stimuli to be presented on the current trial'''
@@ -940,7 +950,7 @@ define pygaze_drift_correct pygaze_drift_correct
 	set description "Perform eye-tracker drift correction"
 
 define pygaze_init pygaze_init
-	set tracker_type "Advanced dummy (mouse simulation)"
+	set tracker_type EyeLink
 	set tobiiglasses_udpport 49152
 	set tobiiglasses_address "192.168.71.50"
 	set smi_send_port 4444
